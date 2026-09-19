@@ -1,26 +1,24 @@
 # kson
 
-A small, dependency-free JSON toolkit for Kotlin Multiplatform:
+A JSON toolkit for Kotlin Multiplatform:
 
-- **`kson-core`**: a library with a JSON value model, a builder DSL, a strict RFC 8259 parser and writer, typed accessors, JSON Pointer, a jq-compatible query engine, and JSON Schema inference.
-- **`kson-cli`**: a Kotlin/Native command-line tool (`kson`) that works like jq: `cat a.json | kson` prints colored JSON, and `kson '<filter>'` runs jq filters.
+- `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
+- `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
 
 Targets: JVM, macOS (arm64/x64), Linux (x64/arm64), Windows (mingwX64), iOS (arm64/simulator/x64).
 
 ## Builder DSL
 
 ```kotlin
-import com.fajarnuha.kson.*
-
 val user = json {
     "id" to 42
-    "name" to "Fajar"
+    "name" to "Sample"
     "active" to true
     "nickname" to null
     "role" to Role.ADMIN                         // enums become their name
     "address" to {                               // lambda form
-        "city" to "Tangerang Selatan"
-        "geo" { "lat" to -6.29; "lng" to 106.72 } // invoke form
+        "city" to "Example City"
+        "point" { "x" to 12.34; "y" to 56.78 }  // invoke form
     }
     "tags" to arr("kotlin", "android")           // flat array
     "devices" to arr {                           // block array
@@ -36,16 +34,16 @@ println(user.toJson(pretty = true))
 val list = jsonArray { add(1); +"two"; obj { "three" to 3 } }
 ```
 
-Existing Kotlin data drops straight in. `Map`, `Iterable`, `Sequence`, arrays, primitive arrays, `Pair`, enums, unsigned numbers and `Char` are all converted.
+The builder accepts `Map`, `Iterable`, `Sequence`, arrays, primitive arrays, `Pair`, enums, unsigned numbers, and `Char`.
 
 ```kotlin
-val config = mapOf("retries" to 3, "hosts" to listOf("a", "b")) // build maps OUTSIDE the block
+val config = mapOf("retries" to 3, "hosts" to listOf("a", "b"))
 val doc = json { "config" to config }
 ```
 
-> Inside `json { }`, `to` is the DSL's field setter and shadows `kotlin.to`. Build `Pair`s and maps outside the block, or use `put(key, value)` / `putAll(map)`.
+Inside `json { }`, `to` sets a field and shadows `kotlin.to`. Build pairs and maps before the block, or use `put(key, value)` and `putAll(map)`.
 
-Other helpers: `put`, `putAll`, `putIfNotNull`, `remove`, `jsonObjectOf(...)`, `jsonArrayOf(...)`, and `obj.buildUpon { ... }` to copy and extend.
+Other helpers include `putIfNotNull`, `remove`, `jsonObjectOf(...)`, `jsonArrayOf(...)`, and `obj.buildUpon { ... }`.
 
 ## Parsing and writing
 
@@ -59,9 +57,9 @@ v.toJson()                                                // compact
 v.toJson(JsonFormat(pretty = true, indent = "\t", sortKeys = true, escapeNonAscii = true))
 ```
 
-The parser follows RFC 8259 exactly, like `JSON.parse`. It rejects trailing commas, comments, single quotes, leading zeros, `NaN` and `Infinity`, and unescaped control characters. It accepts any value at the top level and tolerates a leading byte-order mark. Duplicate keys keep the last value by default; `JsonParseOptions.Strict` rejects them. Nesting is capped at `maxDepth` (512 by default).
+The parser follows RFC 8259. It rejects trailing commas, comments, single quotes, leading zeros, `NaN`, `Infinity`, and unescaped control characters. It accepts any top-level JSON value and a leading byte-order mark. By default, the last duplicate key wins. `JsonParseOptions.Strict` rejects duplicate keys. The default nesting limit is 512.
 
-**Numbers keep their exact text.** `JsonNumber` stores the literal, so `12345678901234567890` or `0.1000000000000000055511151231257827` round-trip unchanged. Equality is by value: `1`, `1.0` and `1e0` are equal. `JsonNumber` is itself a `Number`.
+`JsonNumber` keeps the original literal, so `12345678901234567890` and `0.1000000000000000055511151231257827` round-trip unchanged. Equality uses numeric value: `1`, `1.0`, and `1e0` are equal. `JsonNumber` extends `Number`.
 
 ## Reading values
 
@@ -73,13 +71,13 @@ v.at("/a/0")                // RFC 6901 JSON Pointer
 v.toKotlin()                // back to Map / List / String / Long / Double / Boolean / null
 ```
 
-Accessors: `string`, `int`, `long`, `double`, `float`, `boolean`, `number`, `jsonObject`, `jsonArray`, each with an `OrNull` variant, plus `isNull` and `jsonType`.
+Typed accessors include `string`, `int`, `long`, `double`, `float`, `boolean`, `number`, `jsonObject`, and `jsonArray`. Each has an `OrNull` variant. Use `isNull` and `jsonType` to inspect a value.
 
-Transformations on the immutable model: `obj + other`, `obj + ("k" to v)`, `obj - "k"`, `deepMerge`, `sortedKeys()`, `withoutNulls()`, and `walk { pointer, value -> }`.
+The immutable model supports `obj + other`, `obj + ("k" to v)`, `obj - "k"`, `deepMerge`, `sortedKeys()`, `withoutNulls()`, and `walk { pointer, value -> }`.
 
 ## jq queries
 
-`kson-core` runs programs written in the jq language, so the same filter works in code and in the terminal.
+`kson-core` runs jq filters in Kotlin. The CLI accepts the same filters.
 
 ```kotlin
 val doc = Json.parse(text)
@@ -92,7 +90,7 @@ q.all(doc, variables = mapOf("min" to JsonNumber(50)))
 q.run(doc) { output -> println(output) }   // streaming
 ```
 
-The supported language includes:
+Supported syntax includes:
 
 - **Paths and iteration.** `.a.b`, `."key"`, `.[0]`, `.[-1]`, `.[2:4]`, `.[]`, `..`, and the optional `?` suffix.
 - **Operators.** Pipes and commas, arithmetic on numbers, strings, arrays and objects, comparisons, `and`, `or`, `not`, and the `//` alternative.
@@ -100,21 +98,21 @@ The supported language includes:
 - **Control flow.** `if`/`elif`/`else`, `try`/`catch`, `reduce`, `foreach`, `limit`, `first`, `until`, `while` and `repeat`.
 - **Definitions.** `def` with filter and `$value` parameters, recursion, variables, and destructuring such as `. as {a: $x, b: [$y]}`.
 - **Assignment.** `=`, `|=`, `+=`, `-=`, `*=`, `/=`, `%=`, `//=`, and path functions like `path`, `paths`, `getpath`, `setpath`, `del`, `delpaths`, `pick`, `to_entries`, `with_entries`.
-- **The builtin library.** This covers `map`, `select`, `keys`, `has`, `length`, `sort_by`, `group_by`, `unique_by`, `min_by`, `add`, `any`, `all`, `flatten`, `range`, `walk`, `transpose`, `tostream`, `split`, `join`, `ascii_downcase`, `ltrimstr`, `test`, `match`, `capture`, `scan`, `sub`, `gsub`, `splits`, `tojson`, `fromjson`, `tonumber`, `input`, `inputs`, `debug`, `$ENV` and more.
+- **Builtins.** `map`, `select`, `keys`, `has`, `length`, `sort_by`, `group_by`, `unique_by`, `min_by`, `add`, `any`, `all`, `flatten`, `range`, `walk`, `transpose`, `tostream`, `split`, `join`, `ascii_downcase`, `ltrimstr`, `test`, `match`, `capture`, `scan`, `sub`, `gsub`, `splits`, `tojson`, `fromjson`, `tonumber`, `input`, `inputs`, `debug`, and `$ENV`.
 
 ### Compatibility with jq
 
-`scripts/jq-parity.sh` runs more than 350 filters through both jq 1.7.1 and kson and compares the output byte for byte. CI runs it on every push. The deliberate differences are:
+`scripts/jq-parity.sh` compares more than 350 filters against jq 1.7.1 byte for byte. CI runs it on every push. Known differences are:
 
 - **Number literals keep their spelling.** jq 1.7 rewrites `1e3` as `1E+3`, while kson prints the literal as written. Computed numbers print exactly like jq, for example `1e-07` or `0.30000000000000004`.
 - **Integer arithmetic is exact.** Sums and products of 64-bit integers do not lose precision above 2^53, as they do in jq.
-- **A few newer builtins exist.** `trim`, `ltrim`, `rtrim`, `toarray`, `abs`, `add(f)`, `leaf_paths`, `reverse` on strings, and `repeat` follow jq 1.8 or the jq manual where jq 1.7.1 lacks or mishandles them.
-- **Not supported.** Modules (`import`, `include`), `label`/`break`, `?//` destructuring alternatives, `fromstream`, `truncate_stream`, and the date functions (`now`, `strftime`, `mktime`).
+- **Newer builtins.** `trim`, `ltrim`, `rtrim`, `toarray`, `abs`, `add(f)`, `leaf_paths`, `reverse` on strings, and `repeat` follow jq 1.8 or the jq manual where jq 1.7.1 lacks or mishandles them.
+- **Unsupported syntax.** Modules (`import`, `include`), `label`/`break`, `?//` destructuring alternatives, `fromstream`, `truncate_stream`, and the date functions (`now`, `strftime`, `mktime`).
 
 ## JSON Schema
 
 ```kotlin
-val schema: String = user.toJsonSchema()                       // draft 2020-12, pretty-printed
+val schema: String = user.toJsonSchema()                       // draft 2020-12, formatted
 val schemaObj: JsonObject = user.toJsonSchemaValue()
 inferJsonSchema("""[{"a":1},{"a":2.5,"b":"x"}]""")
 
@@ -134,7 +132,7 @@ Inference rules:
 
 ## CLI
 
-`kson` behaves like jq. With no arguments it pretty-prints its input, and its first argument is a jq filter unless it names a subcommand.
+With no arguments, `kson` formats JSON from stdin. Its first argument is a jq filter unless it names a subcommand.
 
 ```bash
 cat a.json | kson                                  # pretty-print with colors
@@ -146,9 +144,9 @@ cat events.ndjson | kson -c 'select(.level == "error")'
 kson -s 'map(.size) | add' *.json                  # slurp all inputs into one array
 ```
 
-Colors are on when stdout is a terminal and off when output is piped. `-C` forces them, and `-M` or `NO_COLOR=1` turns them off. The palette follows jq and can be changed with `JQ_COLORS`.
+The CLI uses colors when stdout is a terminal. `-C` forces colors; `-M` or `NO_COLOR=1` disables them. Set `JQ_COLORS` to change the jq-style palette.
 
-The jq flags work the same way:
+Query flags:
 
 | Flag | Meaning |
 |---|---|
@@ -173,7 +171,7 @@ Exit codes in query mode match jq:
 | 4 | With `-e`, there was no output |
 | 5 | The filter raised an error |
 
-Subcommands cover tasks jq has no shortcut for:
+Subcommands:
 
 ```
 kson fmt data.json                 # pretty-print
@@ -185,47 +183,55 @@ kson type /users data.json
 kson paths data.json               # every JSON Pointer
 kson schema --title User data.json # infer a JSON Schema
 kson merge base.json override.json # deep merge
-kson build name=Fajar age:=42 address.city=Tangsel tags:='["a","b"]'
+kson build name=Sample age:=42 address.city=ExampleCity tags:='["a","b"]'
 kson build -a one :=2 ':={"three":3}'
 ```
 
 Subcommands exit with 0 for success, 1 for invalid JSON or a missing pointer, and 2 for usage errors.
 
-### Building the CLI
+### Build the CLI
 
 ```bash
 ./gradlew :kson-cli:linkReleaseExecutableMacosArm64   # also MacosX64, LinuxX64, LinuxArm64, MingwX64
-cp kson-cli/build/bin/macosArm64/releaseExecutable/kson.kexe /usr/local/bin/kson
+./kson-cli/build/bin/macosArm64/releaseExecutable/kson.kexe --version
 ```
 
-Linking the macOS binaries needs a full Xcode install. The Linux and Windows binaries cross-compile from any host. CI uploads a binary for every platform as a build artifact.
+macOS linking needs Xcode. CI uploads binaries for all five CLI targets.
+
+Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches the five binaries to a GitHub Release.
 
 ## Using the library in another project
 
-**Option 1: composite build.** This needs no publishing. In the consumer's `settings.gradle.kts`:
+### Composite build
+
+Add the repository as an included build in the consumer's `settings.gradle.kts`:
 
 ```kotlin
 includeBuild("../kson")
 ```
 
 ```kotlin
-// build.gradle.kts, in commonMain / main dependencies
-implementation("com.fajarnuha.kson:kson-core:0.1.0")
+// build.gradle.kts, in commonMain or main dependencies
+implementation("<group>:kson-core:<version>")
 ```
 
-**Option 2: Maven local.**
+Use the `GROUP` and `VERSION_NAME` values from this repository's `gradle.properties` for the placeholders.
+
+### Maven local for JVM
 
 ```bash
-./gradlew :kson-core:publishToMavenLocal
+./gradlew :kson-core:publishJvmPublicationToMavenLocal
 ```
 
-Then add `mavenLocal()` to the consumer's repositories.
+Add `mavenLocal()` to the consumer's repositories.
 
-**Option 3: GitHub Packages.** Pushing a `v*` tag publishes the library there. Consumers need a token with `read:packages`:
+### GitHub Packages
+
+Pushing a `v*` tag publishes the library to GitHub Packages. Consumers need a token with `read:packages`:
 
 ```kotlin
 repositories {
-    maven("https://maven.pkg.github.com/fajarnuha/kson") {
+    maven("https://maven.pkg.github.com/<owner>/kson") {
         credentials {
             username = providers.gradleProperty("gpr.user").get()
             password = providers.gradleProperty("gpr.key").get()
@@ -233,6 +239,31 @@ repositories {
     }
 }
 ```
+
+Replace `<owner>` with the GitHub account that owns the repository.
+
+### JitPack
+
+When the repository is public, CI requests a JitPack build for each pushed tag. The CI job skips private repositories. Private builds require a [JitPack subscription and authorized access](https://docs.jitpack.io/private/). Add JitPack to the consumer's `settings.gradle.kts`:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven { url = uri("https://jitpack.io") }
+    }
+}
+```
+
+For a JVM app, add the dependency in the module's `build.gradle.kts`:
+
+```kotlin
+dependencies {
+    implementation("com.github.<owner>.kson:kson-core-jvm:<tag>")
+}
+```
+
+Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. This artifact contains the JVM library.
 
 ## Development
 
@@ -245,4 +276,4 @@ repositories {
 scripts/jq-parity.sh kson-cli/build/bin/linuxX64/releaseExecutable/kson.kexe
 ```
 
-The common tests run on every target. The JVM-only `JacksonParityTest` checks that kson accepts, rejects and round-trips the same corpus as Jackson in strict mode. `scripts/jq-parity-cases.txt` holds the jq comparison cases, one `flags ::: filter ::: input` per line.
+The common tests run on each target. `JacksonParityTest` compares strict parsing and round trips against Jackson on the JVM. `scripts/jq-parity-cases.txt` lists the jq comparison cases as `flags ::: filter ::: input`.

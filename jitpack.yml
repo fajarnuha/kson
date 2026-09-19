@@ -1,0 +1,4 @@
+jdk:
+  - openjdk21
+install:
+  - ./gradlew :kson-core:publishJvmPublicationToMavenLocal -PGROUP="${GROUP}.${ARTIFACT}" -PVERSION_NAME="$VERSION"

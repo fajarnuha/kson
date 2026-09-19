@@ -715,6 +715,8 @@ internal fun matches(r: CompiledRegex, s: String, forceGlobal: Boolean = false):
     return if (r.skipEmpty) all.filter { it.value.isNotEmpty() } else all
 }
 
+internal expect fun groupOffset(group: MatchGroup): Int
+
 internal fun matchObject(r: CompiledRegex, m: MatchResult): JsonObject {
     val captures = ArrayList<JsonValue>()
     for (g in 1 until m.groups.size) {
@@ -722,7 +724,7 @@ internal fun matchObject(r: CompiledRegex, m: MatchResult): JsonObject {
         val name = r.groupNames.getOrNull(g - 1)
         captures += JsonObject(
             linkedMapOf(
-                "offset" to (if (group == null) num(-1L) else num(group.range.first.toLong())),
+                "offset" to (if (group == null) num(-1L) else num(groupOffset(group).toLong())),
                 "length" to num((group?.value?.length ?: 0).toLong()),
                 "string" to (group?.value?.let { JsonString(it) } ?: JsonNull),
                 "name" to (name?.let { JsonString(it) } ?: JsonNull),

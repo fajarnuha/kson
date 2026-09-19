@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ['*']
   pull_request:
 
 permissions:
@@ -78,6 +78,32 @@ jobs:
         with:
           name: ${{ matrix.name }}
           path: ${{ matrix.name }}
+
+  release:
+    name: Publish CLI release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [cli, jq-parity]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: kson-*
+          path: dist
+          merge-multiple: true
+      - run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+
+  jitpack:
+    name: Build kson-core on JitPack
+    if: startsWith(github.ref, 'refs/tags/') && github.event.repository.private == false
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl --fail --location --show-error --retry 5 --retry-delay 10 "https://jitpack.io/com/github/fajarnuha/kson/kson-core-jvm/${GITHUB_REF_NAME}/kson-core-jvm-${GITHUB_REF_NAME}.pom" -o /dev/null
 
   publish:
     name: Publish library to GitHub Packages
