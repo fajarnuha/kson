@@ -4,6 +4,7 @@ import kotlinx.cinterop.CPointer
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.convert
+import kotlinx.cinterop.toKString
 import kotlinx.cinterop.usePinned
 import platform.posix.FILE
 import platform.posix.fclose
@@ -11,10 +12,17 @@ import platform.posix.fflush
 import platform.posix.fopen
 import platform.posix.fputs
 import platform.posix.fread
+import platform.posix.getenv
 import platform.posix.stderr
 import platform.posix.stdin
 import platform.posix.stdout
 import kotlin.system.exitProcess
+
+/** Whether file descriptor [fd] (0 = stdin, 1 = stdout) is an interactive terminal that can render ANSI colors. */
+internal expect fun isTerminal(fd: Int): Boolean
+
+/** All environment variables, for `$ENV` / `env` in queries. */
+internal expect fun environment(): Map<String, String>
 
 /** Reads a whole stream as UTF-8. */
 @OptIn(ExperimentalForeignApi::class)
@@ -52,11 +60,15 @@ fun main(args: Array<String>) {
     val io = CliIo(
         readFile = ::readFileText,
         readStdin = { readAll(stdin) },
-        out = { println(it) },
+        out = { fputs(it, stdout) },
         err = { msg ->
             fflush(stdout)
             fputs(msg + "\n", stderr)
         },
+        stdoutIsTerminal = isTerminal(1),
+        stdinIsTerminal = isTerminal(0),
+        getenv = { getenv(it)?.toKString() },
+        environment = ::environment,
     )
     val code = runCli(args.toList(), io)
     fflush(stdout)

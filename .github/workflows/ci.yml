@@ -37,6 +37,20 @@ jobs:
       - run: ./gradlew ${{ matrix.tasks }} --console=plain
         shell: bash
 
+  jq-parity:
+    name: jq parity (jq 1.7.1)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - run: sudo apt-get install -y jq && jq --version
+      - run: ./gradlew :kson-cli:linkReleaseExecutableLinuxX64 --console=plain
+      - run: scripts/jq-parity.sh kson-cli/build/bin/linuxX64/releaseExecutable/kson.kexe
+
   cli:
     name: CLI binary (${{ matrix.target }})
     needs: test

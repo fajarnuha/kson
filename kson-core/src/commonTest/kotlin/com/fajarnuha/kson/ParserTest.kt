@@ -110,3 +110,19 @@ class ParserTest {
         }
     }
 }
+
+class StreamParserTest {
+    @Test
+    fun parsesWhitespaceSeparatedValues() {
+        assertEquals(listOf("1", "{\"a\":2}", "[3]", "\"x\"", "null"), Json.parseAll("1 {\"a\":2}\n[3]\"x\"\tnull\n").map { it.toJson() })
+        assertEquals(emptyList(), Json.parseAll("  \n"))
+    }
+
+    @Test
+    fun errorsSurfaceLazily() {
+        val seq = Json.parseSequence("1 2 {oops").iterator()
+        assertEquals("1", seq.next().toJson())
+        assertEquals("2", seq.next().toJson())
+        kotlin.test.assertFailsWith<JsonParseException> { seq.next() }
+    }
+}

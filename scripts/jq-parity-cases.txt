@@ -1,0 +1,374 @@
+# flags ::: filter ::: input
+# --- paths and basic access
+ ::: . ::: {"a":1,"b":[1,2,{"c":"x"}]}
+ ::: .a ::: {"a":1}
+ ::: .a.b.c ::: {"a":{"b":{"c":true}}}
+ ::: .missing ::: {"a":1}
+ ::: ."a-b" ::: {"a-b":5}
+ ::: .["a"] ::: {"a":5}
+ ::: .a."b" ::: {"a":{"b":7}}
+ ::: .[0] ::: [10,20,30]
+ ::: .[-1] ::: [10,20,30]
+ ::: .[5] ::: [10,20,30]
+ ::: .[1.7] ::: [10,20,30]
+ ::: .[] ::: [1,"a",null]
+ ::: .[] ::: {"x":1,"y":2}
+ ::: .[1:] ::: [1,2,3,4]
+ ::: .[:2] ::: [1,2,3,4]
+ ::: .[-2:] ::: [1,2,3,4]
+ ::: .[1:3] ::: "abcdef"
+ ::: .[2:1] ::: [1,2,3]
+ ::: .a[] ::: {"a":[1,2]}
+ ::: .a[].b ::: {"a":[{"b":1},{"b":2}]}
+ ::: .[].a? ::: [1,{"a":2}]
+ ::: .a ::: 5
+ ::: .a? ::: 5
+ ::: [.[]?] ::: 5
+ ::: .. ::: [1,[2]]
+ ::: [..|numbers] ::: {"a":1,"b":{"c":2,"d":[3]}}
+ ::: .a.b ::: null
+ ::: .[] ::: null
+ ::: .["a","b"] ::: {"a":1,"b":2}
+ ::: .[.k] ::: {"k":"v","v":42}
+# --- pipes, commas, literals
+ ::: .a, .b ::: {"a":1,"b":2}
+ ::: .a | .b ::: {"a":{"b":3}}
+ ::: 1, "two", null, true, [1], {"k":2} ::: null
+ ::: "a\tbé\n" ::: null
+ ::: [.[] | . * 2] ::: [1,2,3]
+ ::: (1,2) + (10,20) ::: null
+ ::: [(1,2) as $x | ($x, $x * 10)] ::: null
+# --- arithmetic
+ ::: 1 + 2 * 3 - 4 / 2 ::: null
+ ::: 10 % 3, -10 % 3, 10 % -3, 5.5 % 2 ::: null
+ ::: 1 / 3 ::: null
+ ::: .a + .b ::: {"a":"x","b":"y"}
+ ::: . + [3] ::: [1,2]
+ ::: . + {"b":2} ::: {"a":1}
+ ::: null + 1, 1 + null ::: null
+ ::: [1,2,3,2] - [2] ::: null
+ ::: {"a":{"b":1}} * {"a":{"c":2}} ::: null
+ ::: "ab" * 3, "ab" * 0 ::: null
+ ::: "a,b,c" / "," ::: null
+ ::: 1 / 0 ::: null
+ ::: {} + 1 ::: null
+ ::: -(.a) ::: {"a":3}
+ ::: 0.1 + 0.2 ::: null
+ ::: 3 * 1.5, 2 * 3 ::: null
+# --- comparison & logic
+ ::: 1 < 2, "a" < "b", [1] < [1,0], {} < [], null < false, false < true, true < 0 ::: null
+ ::: . == {"b":2,"a":1} ::: {"a":1,"b":2}
+ ::: 1 == 1.0 ::: null
+ ::: true and (true,false) ::: null
+ ::: (true,false) or false ::: null
+ ::: false and error("x") ::: null
+ ::: [.[] | not] ::: [true,false,null,0,""]
+ ::: .a // "d" ::: {"a":null}
+ ::: .a // "d" ::: {"a":false}
+ ::: .a // "d" ::: {"a":0}
+ ::: (.a, .b) // 9 ::: {"a":null,"b":2}
+ ::: [.[] // 0] ::: [null,1]
+ ::: .x.y // "safe" ::: 5
+ ::: empty // 1 ::: null
+# --- construction
+ ::: {a: .x, "b": 2, (.k): 3} ::: {"x":1,"k":"dyn"}
+ ::: {a, b} ::: {"a":1,"b":2,"c":3}
+ ::: {"a b": 1} ::: null
+ ::: {(.[]): 1} ::: ["x","y"]
+ ::: {a: (1,2)} ::: null
+ ::: {a: (1,2), b: (3,4)} ::: null
+ ::: {$x} ::: null
+ ::: . as $x | {$x} ::: 5
+ ::: {"k\(.a)": .a} ::: {"a":1}
+ ::: {if: 1, then: 2} ::: null
+ ::: [] ::: null
+ ::: [.a, .b] ::: {"a":1,"b":2}
+ ::: [range(5)] ::: null
+ ::: {} ::: null
+# --- strings and formats
+ ::: "hello \(.name), you are \(.age)" ::: {"name":"Ann","age":30}
+ ::: "nested \("in \(1 + 1)")" ::: null
+ ::: @base64 ::: "hello"
+ ::: @base64d ::: "aGVsbG8="
+ ::: @uri ::: "a b&c=d/é"
+ ::: @html ::: "<a href=\"x\">'&'</a>"
+ ::: @csv ::: [1,"a,b","q\"uote",null,true]
+ ::: @tsv ::: [1,"a\tb","c\\d",null]
+ ::: @sh ::: ["a b","it's"]
+ ::: @sh "echo \(.)" ::: "x'y"
+ ::: @json ::: {"a":[1,"x"]}
+ ::: @text ::: [1]
+ ::: @json "v=\(.)" ::: {"a":1}
+ ::: @base64 "\(.a)-\(.b)" ::: {"a":"x","b":"y"}
+ -r ::: @csv ::: ["a","b"]
+ -r ::: .[] ::: ["x","y\nz"]
+ -j ::: .[] ::: ["x","y",1]
+# --- conditionals
+ ::: if . > 2 then "big" elif . > 1 then "mid" else "small" end ::: 2
+ ::: [.[] | if . then 1 else 0 end] ::: [true,false,null,0]
+ ::: if . then "yes" end ::: false
+ ::: if (true,false) then 1 else 2 end ::: null
+# --- try/catch & errors
+ ::: try error("boom") catch . ::: null
+ ::: try error({"code":1}) catch .code ::: null
+ ::: [.[] | try tonumber catch "bad"] ::: ["1","x","2.5"]
+ ::: [.[] | tonumber?] ::: ["1","x","3"]
+ ::: try (1, error("x"), 3) catch "caught" ::: null
+ ::: .a | error ::: {"a":"custom"}
+ ::: error(null) ::: null
+ ::: [.[] | (1 / .)?] ::: [1,0,2]
+ ::: try error("x") ::: null
+ ::: (try error("x") catch .) | length ::: null
+ ::: [.[] | try if . == 2 then error("two") else . end catch "E"] ::: [1,2,3]
+# --- variables, reduce, foreach, def
+ ::: . as $x | $x + 1 ::: 1
+ ::: . as [$a, $b] | $a + $b ::: [1,2]
+ ::: . as {a: $x, b: [$y, $z]} | [$x, $y, $z] ::: {"a":1,"b":[2,3]}
+ ::: . as {$a, $b} | $a * $b ::: {"a":3,"b":4}
+ ::: .[] as [$k, $v] | {($k): $v} ::: [["a",1],["b",2]]
+ ::: reduce .[] as $x (0; . + $x) ::: [1,2,3,4]
+ ::: reduce .[] as [$k,$v] ({}; .[$k] = $v) ::: [["a",1],["b",2]]
+ ::: [foreach .[] as $x (0; . + $x)] ::: [1,2,3]
+ ::: [foreach .[] as $x (0; . + $x; [$x, .])] ::: [1,2,3]
+ ::: def f: . * 2; [.[] | f] ::: [1,2]
+ ::: def f(g): [.[] | g]; f(. + 1) ::: [1,2]
+ ::: def f($n): . + $n; f(10) ::: 1
+ ::: def fac: if . <= 1 then 1 else . * (. - 1 | fac) end; fac ::: 10
+ ::: def f(x): x * 2; f(.a) ::: {"a":4}
+ ::: def g: def h: 3; h + 1; g ::: null
+ ::: def f(a; $b): a + $b; f(.x; .y) ::: {"x":1,"y":2}
+ --arg n 5 ::: $n ::: null
+ --argjson n {"a":1} ::: $n.a ::: null
+ --arg x hi ::: $ARGS.named ::: null
+ ::: $__loc__ ::: null
+# --- assignment
+ ::: .a = 1 ::: {"a":0,"b":2}
+ ::: .a.b.c = 1 ::: null
+ ::: .[2] = 1 ::: null
+ ::: .a |= . + 1 ::: {"a":1}
+ ::: .[] |= . * 2 ::: [1,2,3]
+ ::: .a += 10 ::: {"a":1}
+ ::: .a -= 1, .a *= 3, .a /= 2, .a %= 2 ::: {"a":5}
+ ::: .a //= "default" ::: {"a":null}
+ ::: .a //= "default" ::: {"a":"set"}
+ ::: .[] += 1 ::: {"x":1,"y":2}
+ ::: .a = .b ::: {"a":1,"b":2}
+ ::: .a = (1,2) ::: {}
+ ::: (.a, .b) = 9 ::: {}
+ ::: .[] |= empty ::: [1,2,3,4,5]
+ ::: .a |= empty ::: {"a":1,"b":2}
+ ::: (.. | numbers) |= . + 1 ::: {"a":1,"b":[2,{"c":3}]}
+ ::: .[1:3] = ["x"] ::: [1,2,3,4]
+ ::: .[1:3] |= map(. * 10) ::: [1,2,3,4]
+ ::: to_entries ::: {"a":1,"b":2}
+ ::: .[-1] = 9 ::: [1,2]
+# --- paths
+ ::: [paths] ::: {"a":[1,{"b":2}]}
+ ::: [paths(type == "number")] ::: {"a":[1,{"b":2}]}
+ ::: path(.a[0].b) ::: null
+ ::: [path(..)] ::: {"a":[1]}
+ ::: path(.a | select(.b == 0)) ::: {"a":{"b":0}}
+ ::: getpath(["a","b"]) ::: {"a":{"b":5}}
+ ::: getpath(["x","y"]) ::: {"a":1}
+ ::: setpath(["a",1]; 9) ::: {}
+ ::: delpaths([["a"],["b",0]]) ::: {"a":1,"b":[1,2],"c":3}
+ ::: del(.a, .c) ::: {"a":1,"b":2,"c":3}
+ ::: del(.[1,2]) ::: [1,2,3,4]
+ ::: del(.[] | select(. > 2)) ::: [1,5,2,7]
+ ::: del(.[1:3]) ::: [1,2,3,4]
+ ::: to_entries | map(select(.value > 1)) | from_entries ::: {"a":1,"b":2,"c":3}
+ ::: pick(.a.b, .c[1]) ::: {"a":{"b":1,"x":2},"c":[1,2,3]}
+ ::: [tostream] ::: {"a":[1,{"b":2}],"c":[]}
+ ::: path(1) ::: null
+ ::: [paths(..)] ::: [[1]]
+# --- builtins: types & collections
+ ::: [.[] | type] ::: [null,true,1,"s",[],{}]
+ ::: [.[] | length] ::: [null,-5,"héllo",[1,2],{"a":1}]
+ ::: utf8bytelength ::: "héllo"
+ ::: keys ::: {"b":1,"a":2,"A":3}
+ ::: keys_unsorted ::: {"b":1,"a":2}
+ ::: keys ::: [5,6]
+ ::: [has("a"), has("z")] ::: {"a":1}
+ ::: [has(0), has(5)] ::: [1]
+ ::: [.[] | in({"a":1})] ::: ["a","b"]
+ ::: map(. + 1) ::: [1,2]
+ ::: map_values(. * 10) ::: {"a":1,"b":2}
+ ::: map_values(empty) ::: {"a":1,"b":2}
+ ::: to_entries ::: {"a":1}
+ ::: from_entries ::: [{"key":"a","value":1},{"name":"c","value":3},{"key":"x"},{"key":"v","v":9}]
+ ::: from_entries ::: [{"key":1,"value":4}]
+ ::: from_entries ::: [{"key":false,"value":6}]
+ ::: from_entries ::: [{"k":"b","v":2}]
+ ::: with_entries(.value += 1) ::: {"a":1,"b":2}
+ ::: with_entries(.key |= ascii_upcase) ::: {"a":1}
+ ::: add ::: [1,2,3]
+ ::: add ::: ["a","b"]
+ ::: add ::: [[1],[2]]
+ ::: add ::: []
+ ::: any, all ::: [true,false]
+ ::: any, all ::: []
+ ::: any(. > 2), all(. > 0) ::: [1,2,3]
+ ::: any(.[]; . == 2) ::: [1,2]
+ ::: flatten ::: [1,[2,[3,[4]]]]
+ ::: flatten(1) ::: [1,[2,[3,[4]]]]
+ ::: [range(0; 10; 3)], [range(5; 0; -2)], [range(0,1; 3,4)] ::: null
+ ::: [range(0; 1; 0.25)] ::: null
+ ::: floor, ceil, round, sqrt, fabs ::: 2.5
+ ::: [.[] | round] ::: [-2.5,-1.5,0.5,1.5]
+ ::: pow(2; 10), log10 ::: 100
+ ::: tostring, tojson ::: [1,"a"]
+ ::: [.[] | tostring] ::: [1,"a",null,{"k":true}]
+ ::: fromjson ::: "{\"a\":[1,2]}"
+ ::: sort ::: [3,1,null,"b",true,false,[1],{"a":1},"a",2]
+ ::: sort_by(.a) ::: [{"a":3},{"a":1},{"a":2}]
+ ::: sort_by(.a, .b) ::: [{"a":1,"b":2},{"a":1,"b":1},{"a":0,"b":9}]
+ ::: group_by(.t) ::: [{"t":"x","v":1},{"t":"y","v":2},{"t":"x","v":3}]
+ ::: unique ::: [3,1,2,1,3]
+ ::: unique_by(length) ::: ["a","bb","cc","d"]
+ ::: min, max ::: [3,1,2]
+ ::: min, max ::: []
+ ::: min_by(.a), max_by(.a) ::: [{"a":2},{"a":1},{"a":3}]
+ ::: reverse ::: [1,2,3]
+ ::: contains("bar") ::: "foobar"
+ ::: contains(["baz", "bar"]) ::: ["foobar", "foobaz", "blarp"]
+ ::: contains({foo: 12, bar: [{barp: 12}]}) ::: {"foo": 12, "bar":[1,2,{"barp":12, "blip":13}]}
+ ::: inside("foobar") ::: "bar"
+ ::: indices(", ") ::: "a, b, c"
+ ::: indices(1) ::: [0,1,2,1,3,1,4]
+ ::: indices([1,2]) ::: [0,1,2,3,1,4,2,5,1,2,6,7]
+ ::: index(","), rindex(",") ::: "a,b,c"
+ ::: first, last, nth(1) ::: [1,2,3]
+ ::: first(range(10;20)), last(range(3)), nth(2; range(10)) ::: null
+ ::: [limit(3; .[])] ::: [1,2,3,4,5]
+ ::: [limit(0; 1,2)] ::: null
+ ::: [first(empty)] ::: null
+ ::: isempty(empty), isempty(1) ::: null
+ ::: [.[] | select(. > 1)] ::: [1,2,3]
+ ::: [.[] | numbers], [.[] | strings], [.[] | iterables], [.[] | scalars] ::: [1,"a",[],{},null]
+ ::: [.[] | values] ::: [1,null,2]
+ ::: [recurse(if . < 3 then . + 1 else empty end)] ::: 0
+ ::: [recurse(.children[]) | .name] ::: {"name":"a","children":[{"name":"b","children":[]}]}
+ ::: [.. | .a? | select(. != null)] ::: [{"a":1},{"b":{"a":2}}]
+ ::: walk(if type == "number" then . + 1 else . end) ::: [1,{"a":2}]
+ ::: walk(if type == "array" then sort else . end) ::: {"a":[3,1],"b":{"c":[2,1]}}
+ ::: [while(. < 20; . * 2)] ::: 1
+ ::: until(. > 100; . * 2) ::: 1
+ ::: transpose ::: [[1,2],[3]]
+ ::: splits(", *") ::: "a, b,c"
+ ::: tojson | fromjson ::: {"a":[1.5,"x"]}
+ ::: ascii_downcase, ascii_upcase ::: "Hello Wörld"
+ ::: ltrimstr("foo"), rtrimstr("bar") ::: "foobar"
+ ::: startswith("foo"), endswith("baz") ::: "foobar"
+ ::: explode, (explode | implode) ::: "aé😀"
+ ::: split(", ") ::: "a, b, c"
+ ::: split("") ::: "abc"
+ ::: join(", ") ::: ["a",1,null,true]
+ ::: join("-") ::: []
+ ::: [.[] | tostring] | join(",") ::: [1,2]
+ ::: combinations ::: [[1,2],[3,4]]
+ ::: [combinations(2)] ::: [0,1]
+ ::: IN(2, 3) ::: 2
+ ::: [.[] | IN(2, 3)] ::: [1,2,3]
+ ::: INDEX(.id) ::: [{"id":1,"v":"a"},{"id":2,"v":"b"}]
+ ::: getpath(["a"]) |= . + 1 ::: {"a":1}
+ ::: tojson ::: 1.10
+ ::: abs ::: -5
+ ::: splits("a") ::: "banana"
+ ::: env | type ::: null
+ ::: $ENV | type ::: null
+ ::: builtins | length > 10 ::: null
+ ::: infinite ::: null
+ ::: [.[] | isinfinite] ::: [1]
+ ::: significand ::: 8
+ ::: implode ::: [65,66]
+ ::: [.[] | trunc] ::: [1.7,-1.7]
+# --- regex
+ ::: test("foo") ::: "foobar"
+ ::: [.[] | test("a.c"; "i")] ::: ["ABC","xyz"]
+ ::: match("(abc)+"; "g") ::: "abc abc"
+ ::: [match("a"; "g").offset] ::: "banana"
+ ::: capture("(?<y>\\d+)-(?<m>\\d+)") ::: "2026-09"
+ ::: [scan("c")] ::: "abcdc"
+ ::: [scan("(a)(b)")] ::: "abab"
+ ::: sub("a"; "X") ::: "banana"
+ ::: gsub("a"; "X") ::: "banana"
+ ::: gsub("(?<x>[a-z])"; "<\(.x)>") ::: "ab1"
+ ::: gsub("\\s+"; " ") ::: "a   b \t c"
+ ::: sub("^\\s+"; "") ::: "   x"
+ ::: [splits("\\d")] ::: "a1b2c"
+ ::: split("\\d"; null) ::: "a1b2c"
+ ::: ascii_downcase | test("hello") ::: "HELLO"
+ ::: gsub("";"-") ::: "ab"
+ ::: [match("";"g") | .offset] ::: "ab"
+# --- misc
+ ::: [.[] | .name] | sort | unique ::: [{"name":"b"},{"name":"a"},{"name":"b"}]
+ ::: .users | map(select(.age > 30) | .name) ::: {"users":[{"name":"a","age":40},{"name":"b","age":20}]}
+ ::: [.[] | {name, n: (.tags | length)}] ::: [{"name":"x","tags":[1,2]}]
+ ::: map(.price * .qty) | add ::: [{"price":2,"qty":3},{"price":1.5,"qty":2}]
+ ::: group_by(.k) | map({k: .[0].k, count: length}) ::: [{"k":"a"},{"k":"b"},{"k":"a"}]
+ ::: to_entries | sort_by(.value) | reverse | .[0].key ::: {"a":1,"b":3,"c":2}
+ ::: [.[] | select(.name | test("^a"))] ::: [{"name":"ab"},{"name":"ba"}]
+ ::: .a as $x | .b | map(. + $x) ::: {"a":10,"b":[1,2]}
+ ::: [.[] | {(.k): .v}] | add ::: [{"k":"a","v":1},{"k":"b","v":2}]
+ ::: reduce .[] as {k: $k, v: $v} ({}; .[$k] += [$v]) ::: [{"k":"a","v":1},{"k":"a","v":2}]
+ ::: [.[] | select(type == "object" and has("id"))] ::: [{"id":1},{"x":1},3]
+ ::: .a[1:] | length ::: {"a":"hello"}
+ ::: [.[] | ascii_downcase] | unique | length ::: ["A","a","B"]
+ ::: input ::: 1 2 3
+ -n ::: [inputs] ::: 1 2 3
+ -n ::: input, input ::: 1 2 3
+ -n ::: reduce inputs as $x (0; . + $x) ::: 1 2 3
+ -s ::: . ::: 1 2 3
+ -s ::: map(.a) ::: {"a":1} {"a":2}
+ ::: .a ::: {"a":1} {"a":2}
+ -R ::: . ::: line1
+ -R ::: length ::: abc
+ -R -s ::: . ::: a
+ -n ::: 1 + 1 ::: 
+ -S ::: . ::: {"b":1,"a":{"d":1,"c":2}}
+ -e ::: .a ::: {"a":false}
+ -e ::: .a ::: {"a":1}
+ -e ::: empty ::: null
+ -a ::: . ::: "é😀"
+ -r ::: .a ::: {"a":"text"}
+ ::: [.[] | debug] ::: [1]
+ ::: .a.b = 1 ::: {"a":5}
+ ::: .[] ::: 5
+ ::: {} | .a.b.c ::: null
+ ::: [.[] | select(. != null)] | length ::: [1,null]
+ ::: "\(1;2)" ::: null
+ ::: . as [$a] | $a ::: {"a":1}
+ ::: nosuchfunc ::: null
+ ::: .a | ::: null
+ ::: @unknown ::: null
+ ::: $undefined ::: null
+ ::: [1,2] | .["a"] ::: null
+ ::: {"a":1} | .[0] ::: null
+ ::: "x" | .[0] ::: null
+
+# --- optional steps (jq: ? binds to one indexing step)
+ ::: [.[].a?] ::: [1,{"a":2},3,{"a":4}]
+ ::: [.[][]?] ::: [1,[2]]
+ ::: [(.[] | .a)?] ::: [1,{"a":2}]
+ ::: [.[][0]?] ::: [[1],2]
+ ::: [.a[]?, 5] ::: {"a":1}
+ ::: [.[] | .[0:1]?] ::: ["x",[3]]
+ ::: -(1), -(-2), -.5 ::: null
+ ::: [.[] | -.] ::: [1, -2.5, 0]
+# --- numbers computed by jq
+ ::: [1e-7 * 1, 1e17 * 1, 1e16*1, 123456789012 * 1000000, 0.1+0.2, 1/3, 2/3, 1e300*1e10, 0.00001*1, 0.0001*1, 1.5e20*1, -1e-5*1] ::: null
+ ::: "ab" * 0, "ab" * -1, "ab" * 0.5, "ab" * 1.5 ::: null
+ ::: [.[] | round] ::: [-0.5, 0.5, 2.5]
+ ::: [limit(-1; 1,2)] ::: null
+ ::: has("a") ::: null
+ ::: indices("") ::: "a"
+ ::: implode ::: [1114112]
+ ::: [.[] | tonumber?] ::: [" 1", "1 ", "0x1", ".5", "1.", "nan"]
+ ::: tojson ::: "\u007f\u0000é"
+ ::: [.[] | . as [$a] | $a] ::: [[1],null]
+ ::: . as {a:$x} | $x ::: [1]
+ ::: [.[] | (.a // "d")] ::: [1]
+ ::: (null, error("x")) // 2 ::: null
+ ::: error(null) ::: null
+ ::: {(1):2} ::: null
+ ::: sort_by(.a), unique_by(.a), max_by(.a), min_by(.a) ::: [{"a":2,"i":1},{"a":1},{"a":2,"i":2}]

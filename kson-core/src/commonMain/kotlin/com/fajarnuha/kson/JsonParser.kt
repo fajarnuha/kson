@@ -39,6 +39,20 @@ public object Json {
     public fun parseArray(text: String, options: JsonParseOptions = JsonParseOptions.Default): JsonArray =
         parse(text, options).jsonArray
 
+    /**
+     * Parses a stream of JSON values separated by optional whitespace (for example newline-delimited JSON,
+     * or `{"a":1} {"a":2}`). Values are parsed lazily, so a syntax error surfaces only when it is reached.
+     */
+    public fun parseSequence(text: String, options: JsonParseOptions = JsonParseOptions.Default): Sequence<JsonValue> =
+        sequence {
+            val parser = JsonParser(text, options)
+            while (true) yield(parser.nextInStream() ?: break)
+        }
+
+    /** Parses every value of a whitespace-separated JSON stream. See [parseSequence]. */
+    public fun parseAll(text: String, options: JsonParseOptions = JsonParseOptions.Default): List<JsonValue> =
+        parseSequence(text, options).toList()
+
     /** Returns true when [text] is valid JSON. */
     public fun isValid(text: String, options: JsonParseOptions = JsonParseOptions.Default): Boolean =
         parseOrNull(text, options) != null
@@ -70,6 +84,14 @@ internal class JsonParser(private val text: String, private val options: JsonPar
         skipWhitespace()
         if (pos < n) throw error("Unexpected trailing character '${text[pos]}' after JSON value")
         return value
+    }
+
+    /** Returns the next value of a whitespace-separated stream, or `null` at the end of input. */
+    fun nextInStream(): JsonValue? {
+        if (pos == 0 && n > 0 && text[0] == '\uFEFF') pos++
+        skipWhitespace()
+        if (pos >= n) return null
+        return parseValue(0)
     }
 
     private fun parseValue(depth: Int): JsonValue {
