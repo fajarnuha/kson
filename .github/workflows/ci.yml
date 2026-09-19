@@ -112,7 +112,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - run: curl --fail --location --show-error --retry 5 --retry-delay 10 "https://jitpack.io/com/github/fajarnuha/kson/${GITHUB_REF_NAME}/kson-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/${GITHUB_REF_NAME}/kson-${GITHUB_REF_NAME}.pom" -o /dev/null
 
   publish:
     name: Publish library to GitHub Packages
