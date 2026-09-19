@@ -84,7 +84,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: kson-*
+          path: |
+            ${{ matrix.name }}
+            ${{ matrix.name }}.tar.gz
 
   release:
     name: Publish CLI release
@@ -110,7 +112,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - run: curl --fail --location --show-error --retry 5 --retry-delay 10 "https://jitpack.io/com/github/fajarnuha/kson/kson-core-jvm/${GITHUB_REF_NAME}/kson-core-jvm-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --show-error --retry 5 --retry-delay 10 "https://jitpack.io/com/github/fajarnuha/kson/${GITHUB_REF_NAME}/kson-${GITHUB_REF_NAME}.pom" -o /dev/null
 
   publish:
     name: Publish library to GitHub Packages

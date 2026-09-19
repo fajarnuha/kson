@@ -268,7 +268,7 @@ For a JVM app, add the dependency in the module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.<owner>.kson:kson-core-jvm:<tag>")
+    implementation("com.github.<owner>:kson:<tag>")
 }
 ```
 
