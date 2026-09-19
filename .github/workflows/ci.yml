@@ -72,12 +72,19 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :kson-cli:linkReleaseExecutable${{ matrix.target }} --console=plain
         shell: bash
-      - run: cp kson-cli/build/bin/${{ matrix.target }}/releaseExecutable/${{ matrix.file }} ${{ matrix.name }}
+      - run: |
+          cp kson-cli/build/bin/${{ matrix.target }}/releaseExecutable/${{ matrix.file }} ${{ matrix.name }}
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            mkdir package
+            cp "${{ matrix.name }}" package/kson
+            cp LICENSE package/LICENSE
+            tar -czf "${{ matrix.name }}.tar.gz" -C package kson LICENSE
+          fi
         shell: bash
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
-          path: ${{ matrix.name }}
+          path: kson-*
 
   release:
     name: Publish CLI release

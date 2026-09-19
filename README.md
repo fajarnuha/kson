@@ -132,6 +132,15 @@ Inference rules:
 
 ## CLI
 
+On macOS, install the release binary with Homebrew:
+
+```bash
+brew install fajarnuha/kson/kson
+kson --version
+```
+
+Homebrew adds `kson` to its `bin` directory. For manual installation, download the binary for your system from [GitHub Releases](https://github.com/fajarnuha/kson/releases), rename it to `kson`, make it executable, and place it in a directory on your `PATH`.
+
 With no arguments, `kson` formats JSON from stdin. Its first argument is a jq filter unless it names a subcommand.
 
 ```bash
@@ -198,7 +207,7 @@ Subcommands exit with 0 for success, 1 for invalid JSON or a missing pointer, an
 
 macOS linking needs Xcode. CI uploads binaries for all five CLI targets.
 
-Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches the five binaries to a GitHub Release.
+Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches binaries for all five targets, plus macOS Homebrew archives, to a GitHub Release.
 
 ## Using the library in another project
 
@@ -244,7 +253,7 @@ Replace `<owner>` with the GitHub account that owns the repository.
 
 ### JitPack
 
-When the repository is public, CI requests a JitPack build for each pushed tag. The CI job skips private repositories. Private builds require a [JitPack subscription and authorized access](https://docs.jitpack.io/private/). Add JitPack to the consumer's `settings.gradle.kts`:
+CI requests a JitPack build for each pushed tag. Add JitPack to the consumer's `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
@@ -277,3 +286,7 @@ scripts/jq-parity.sh kson-cli/build/bin/linuxX64/releaseExecutable/kson.kexe
 ```
 
 The common tests run on each target. `JacksonParityTest` compares strict parsing and round trips against Jackson on the JVM. `scripts/jq-parity-cases.txt` lists the jq comparison cases as `flags ::: filter ::: input`.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

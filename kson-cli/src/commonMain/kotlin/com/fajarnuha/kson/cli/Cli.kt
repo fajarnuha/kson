@@ -22,7 +22,7 @@ import com.fajarnuha.kson.jsonType
 import com.fajarnuha.kson.toJsonSchema
 import com.fajarnuha.kson.walk
 
-const val VERSION = "0.3.0"
+const val VERSION = "0.3.1"
 
 /** Everything the CLI needs from the outside world, so the logic stays pure and testable. */
 class CliIo(

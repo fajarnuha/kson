@@ -54,6 +54,12 @@ publishing {
             name.set("kson")
             description.set("A tiny, dependency-free JSON value model, DSL builder, parser, writer and JSON Schema inference for Kotlin Multiplatform.")
             url.set("https://github.com/fajarnuha/kson")
+            licenses {
+                license {
+                    name.set("The Apache License, Version 2.0")
+                    url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
+                }
+            }
         }
     }
 }
