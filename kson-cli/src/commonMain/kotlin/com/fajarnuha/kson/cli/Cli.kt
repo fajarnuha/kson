@@ -22,7 +22,7 @@ import com.fajarnuha.kson.jsonType
 import com.fajarnuha.kson.toJsonSchema
 import com.fajarnuha.kson.walk
 
-const val VERSION = "0.3.2"
+const val VERSION = "0.3.3"
 
 /** Everything the CLI needs from the outside world, so the logic stays pure and testable. */
 class CliIo(
@@ -301,6 +301,9 @@ private fun query(args: List<String>, io: CliIo): Int {
     } catch (e: JsonQuerySyntaxException) {
         io.err("kson: error: ${e.description} (at offset ${e.offset} in filter)")
         io.err("kson: 1 compile error")
+        if (filter.endsWith(".json", ignoreCase = true)) {
+            io.err("kson: hint: For a JSON file, use 'kson fmt <file>' or 'kson . <file>'.")
+        }
         return 3
     }
 

@@ -150,6 +150,16 @@ class CliTest {
     }
 
     @Test
+    fun jsonFilenameMistakenForFilterGetsFileHint() {
+        val result = run("package.json", files = mapOf("package.json" to doc))
+        assertEquals(3, result.code)
+        assertTrue("compile error" in result.err, result.err)
+        assertTrue("kson fmt <file>" in result.err, result.err)
+        assertTrue("kson . <file>" in result.err, result.err)
+        assertTrue("hint" !in run("nosuchfunc", stdin = doc).err)
+    }
+
+    @Test
     fun debugGoesToStderr() {
         val r = run("debug | . + 1", stdin = "1")
         assertEquals("2", r.out)
