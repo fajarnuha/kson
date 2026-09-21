@@ -3,9 +3,26 @@ package com.fajarnuha.kson
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertFailsWith
 
 class SchemaTest {
     private fun schemaOf(v: JsonValue, o: JsonSchemaOptions = JsonSchemaOptions(schemaUri = null)) = v.toJsonSchemaValue(o)
+
+    @Test
+    fun schemaBuilderWritesDraft202012Keywords() {
+        val built = jsonSchema {
+            title("Todo")
+            property("id", required = true) { type("integer"); minimum(0) }
+            property("title", required = true) { type("string"); minLength(1) }
+            property("tags") { items { type("string") }; minItems(0) }
+            property("state") { ref("#/\$defs/State") }
+            definition("State") { type("string"); enum("open", "done") }
+            additionalProperties(false)
+        }
+        val expected = Json.parse("""{"${'$'}schema":"https://json-schema.org/draft/2020-12/schema","title":"Todo","type":"object","additionalProperties":false,"properties":{"id":{"type":"integer","minimum":0},"title":{"type":"string","minLength":1},"tags":{"items":{"type":"string"},"type":"array","minItems":0},"state":{"${'$'}ref":"#/${'$'}defs/State"}},"required":["id","title"],"${'$'}defs":{"State":{"type":"string","enum":["open","done"]}}}""")
+        assertEquals(expected, built)
+        assertFailsWith<IllegalArgumentException> { schema { type("strng") } }
+    }
 
     @Test
     fun objectSchemaIsString() {

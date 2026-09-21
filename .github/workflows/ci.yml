@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            tasks: ":kson-core:jvmTest :kson-core:macosArm64Test :kson-core:iosSimulatorArm64Test :kson-cli:macosArm64Test"
+            tasks: ":kson-core:jvmTest :kson-core:macosArm64Test :kson-core:iosSimulatorArm64Test :kson-cli:macosArm64Test :kson-playground:test"
           - os: ubuntu-latest
             tasks: ":kson-core:linuxX64Test :kson-cli:linuxX64Test"
           - os: windows-latest

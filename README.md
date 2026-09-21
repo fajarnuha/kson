@@ -4,6 +4,7 @@ A JSON toolkit for Kotlin Multiplatform:
 
 - `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
 - `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
+- `kson-playground` is a JVM app showing KSON with Ktor and Retrofit HTTP clients.
 
 Targets: JVM, macOS (arm64/x64), Linux (x64/arm64), Windows (mingwX64), iOS (arm64/simulator/x64).
 
@@ -130,6 +131,21 @@ Inference rules:
 - Array items are merged across every element. Mixed types produce a `type` array. Object elements merge their properties, and only keys present in every element stay `required`.
 - A string `format` is kept only when all merged samples agree on it.
 
+Define or refine a schema in Kotlin when a sample cannot tell you which fields are optional:
+
+```kotlin
+val todoSchema = jsonSchema {
+    title("Todo")
+    property("id", required = true) { type("integer"); minimum(0) }
+    property("title", required = true) { type("string"); minLength(1) }
+    property("tags") { items { type("string") } }
+    additionalProperties(false)
+}
+println(todoSchema.toJson(pretty = true))
+```
+
+`jsonSchema {}` emits draft 2020-12 JSON Schema. Use `schema {}` for subschemas in `oneOf`, `anyOf`, or `allOf`. The builder also has `definition`, `ref`, `enum`, `format`, `pattern`, `const`, `default`, and common size and range keywords. It builds a schema; it does not validate response data.
+
 ## CLI
 
 On macOS, install the release binary with Homebrew:
@@ -184,6 +200,7 @@ Subcommands:
 
 ```
 kson fmt data.json                 # pretty-print
+kson convert data.json             # generate Kotlin builder code for the same JSON value
 kson min data.json                 # minify
 kson validate data.json            # exit 1 with file:line:column on error
 kson get /users/0/name -r data.json   # RFC 6901 JSON Pointer
@@ -198,6 +215,8 @@ kson build -a one :=2 ':={"three":3}'
 
 Subcommands exit with 0 for success, 1 for invalid JSON or a missing pointer, and 2 for usage errors.
 
+`convert` reads one JSON value from a file or stdin and prints a Kotlin expression using the `kson-core` builder DSL. Import `com.fajarnuha.kson.*` when using the generated code. Numbers that cannot be written as exact `Int` literals use `JsonNumber.parse(...)` to keep their original JSON text.
+
 ### Build the CLI
 
 ```bash
@@ -208,6 +227,18 @@ Subcommands exit with 0 for success, 1 for invalid JSON or a missing pointer, an
 macOS linking needs Xcode. CI uploads binaries for all five CLI targets.
 
 Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches binaries for all five targets, plus macOS Homebrew archives, to a GitHub Release.
+
+## JVM network playground
+
+The playground fetches a JSON response and reads it as a KSON `JsonValue`. The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) calls `bodyAsText()` and `Json.parse(...)`. The [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) installs a converter so its service returns `Call<JsonValue>` directly. Both use `https://jsonplaceholder.typicode.com/todos/1` by default.
+
+```bash
+./gradlew :kson-playground:run                         # run both clients
+./gradlew :kson-playground:run --args='ktor'           # Ktor only
+./gradlew :kson-playground:run --args='retrofit'       # Retrofit only
+./gradlew :kson-playground:run --args='ktor https://example.com/data.json'
+./gradlew :kson-playground:test                        # local HTTP test; no public service required
+```
 
 ## Using the library in another project
 
