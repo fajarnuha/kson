@@ -23,7 +23,7 @@ import com.fajarnuha.kson.jsonType
 import com.fajarnuha.kson.toJsonSchema
 import com.fajarnuha.kson.walk
 
-const val VERSION = "0.3.3"
+const val VERSION = "0.4.0"
 
 /** Everything the CLI needs from the outside world, so the logic stays pure and testable. */
 class CliIo(
@@ -59,6 +59,7 @@ Commands:
   fmt [file]                 Pretty-print JSON
   min [file]                 Minify JSON
   convert [file]             Convert JSON to kson Kotlin builder code
+  model [file]               Generate an @Kson interface from a JSON object
   validate [file]            Check that input is valid JSON (exit 1 if not)
   get <pointer> [file]       Print the value at an RFC 6901 JSON Pointer, e.g. /users/0/name
   keys [pointer] [file]      List the keys of an object (or the indices of an array)
@@ -103,6 +104,8 @@ Other options:
       --no-formats           schema: do not detect string formats
       --no-required          schema: do not emit 'required'
       --closed               schema: emit additionalProperties: false
+      --name <type>          model: root interface name (default: filename or Model)
+      --package <name>       model: optional Kotlin package name
   --                         Treat every following argument as positional
 
 Query exit codes: 0 ok, 1/4 with -e, 2 usage or invalid input, 3 invalid filter, 5 runtime error.
@@ -110,7 +113,7 @@ Colors can be customized with JQ_COLORS, e.g. JQ_COLORS='0;90:0;37:0;37:0;37:0;3
 """.trimIndent()
 
 private val COMMANDS = setOf(
-    "help", "version", "query", "q", "fmt", "format", "pretty", "min", "minify", "convert",
+    "help", "version", "query", "q", "fmt", "format", "pretty", "min", "minify", "convert", "model",
     "validate", "get", "keys", "type", "paths", "schema", "merge", "build",
 )
 
@@ -133,6 +136,8 @@ private class Options {
     var detectFormats = true
     var required = true
     var closed = false
+    var modelName: String? = null
+    var packageName: String? = null
     val named = LinkedHashMap<String, JsonValue>()
     val positional = mutableListOf<String>()
 
@@ -208,6 +213,8 @@ private fun parseOptions(args: List<String>, command: String): Options {
             "--no-formats" -> o.detectFormats = false
             "--no-required" -> o.required = false
             "--closed" -> o.closed = true
+            "--name" -> o.modelName = value(a)
+            "--package", "--package-name" -> o.packageName = value(a)
             else -> throw UsageException("Unknown option: $a")
         }
         i++
@@ -245,6 +252,7 @@ fun runCli(args: List<String>, io: CliIo): Int {
             "fmt", "format", "pretty" -> withInput(rest, command, io) { v, o -> io.line(v.toJson(format(o, io))); 0 }
             "min", "minify" -> withInput(rest, command, io) { v, o -> io.line(v.toJson(format(o, io, defaultPretty = false))); 0 }
             "convert" -> withInput(rest, command, io) { v, _ -> io.line(renderKsonDsl(v)); 0 }
+            "model" -> model(rest, io)
             "validate" -> validate(rest, io)
             "get" -> get(rest, io)
             "keys" -> keys(rest, io)
@@ -413,6 +421,21 @@ private fun validate(args: List<String>, io: CliIo): Int {
     }
 }
 
+private fun model(args: List<String>, io: CliIo): Int {
+    val o = parseOptions(args, "model")
+    if (o.positional.size > 1) throw UsageException("Unexpected argument: ${o.positional[1]}")
+    val path = o.positional.firstOrNull()
+    val defaultName = path
+        ?.takeUnless { it == "-" }
+        ?.substringAfterLast('/')
+        ?.substringAfterLast('\\')
+        ?.substringBeforeLast('.')
+        ?: "Model"
+    val value = Json.parse(readSource(path, io), o.parseOptions)
+    io.line(renderKsonModel(value, o.modelName ?: defaultName, o.packageName))
+    return 0
+}
+
 /** Splits a leading pointer argument (starts with '/' or is empty) from an optional file argument. */
 private fun pointerAndFile(o: Options, pointerRequired: Boolean): Pair<String, String?> {
     val pos = o.positional
@@ -528,7 +551,7 @@ private fun renderKsonDsl(value: JsonValue, depth: Int = 0, nested: Boolean = fa
     }
 }
 
-private fun kotlinString(value: String): String = buildString {
+internal fun kotlinString(value: String): String = buildString {
     append('"')
     for (c in value) when (c) {
         '"' -> append("\\\"")

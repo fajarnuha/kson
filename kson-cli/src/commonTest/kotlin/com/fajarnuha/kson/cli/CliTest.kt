@@ -211,6 +211,44 @@ class CliTest {
     }
 
     @Test
+    fun generateTypedKsonModel() {
+        val input = """{"id":1,"display-name":"A","address":{"city":"X","geo":{"lat":"-1"}},"users":[{"id":1,"nickname":"A"},{"id":2}],"empty":[],"unknown":null}"""
+        assertEquals(
+            """package com.example
+                |
+                |import com.fajarnuha.kson.Kson
+                |import com.fajarnuha.kson.JsonValue
+                |
+                |@Kson
+                |public interface UserResponse {
+                |    public val id: Long
+                |    public val `display-name`: String
+                |    public val address: Address
+                |    public val users: List<UsersItem>
+                |    public val empty: List<JsonValue>
+                |    public val unknown: JsonValue?
+                |
+                |    public interface Address {
+                |        public val city: String
+                |        public val geo: Geo
+                |
+                |        public interface Geo {
+                |            public val lat: String
+                |        }
+                |    }
+                |
+                |    public interface UsersItem {
+                |        public val id: Long
+                |        public val nickname: String?
+                |    }
+                |}""".trimMargin(),
+            run("model", "--name", "UserResponse", "--package", "com.example", stdin = input).out,
+        )
+        assertTrue(run("model", "user-profile.json", files = mapOf("user-profile.json" to "{}")).out.contains("interface UserProfile"))
+        assertEquals(2, run("model", stdin = "[]").code)
+    }
+
+    @Test
     fun validate() {
         assertEquals(0, run("validate", stdin = "[1]").code)
         val bad = run("validate", stdin = "{\n  \"a\": 01\n}")

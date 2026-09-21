@@ -173,11 +173,15 @@ private fun buildSource(
         }
         appendLine("        )")
         appendLine()
-        appendLine("    private data class ${model.generatedName}Impl(")
-        model.properties.forEach { property ->
-            appendLine("        override val ${property.name.identifier()}: ${renderType(property.type)},")
+        if (model.properties.isEmpty()) {
+            appendLine("    private class ${model.generatedName}Impl : ${model.typeName}")
+        } else {
+            appendLine("    private data class ${model.generatedName}Impl(")
+            model.properties.forEach { property ->
+                appendLine("        override val ${property.name.identifier()}: ${renderType(property.type)},")
+            }
+            appendLine("    ) : ${model.typeName}")
         }
-        appendLine("    ) : ${model.typeName}")
     }
     appendLine("}")
 }
