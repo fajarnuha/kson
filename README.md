@@ -3,6 +3,7 @@
 A JSON toolkit for Kotlin Multiplatform:
 
 - `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
+- `kson-ksp` generates typed decoders and JSON Schemas from Kotlin interfaces.
 - `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
 - `kson-playground` is a JVM app showing KSON with Ktor and Retrofit HTTP clients.
 
@@ -228,9 +229,49 @@ macOS linking needs Xcode. CI uploads binaries for all five CLI targets.
 
 Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches binaries for all five targets, plus macOS Homebrew archives, to a GitHub Release.
 
-## JVM network playground
+## Typed responses with KSP
 
-The playground fetches a JSON response and reads it as a KSON `JsonValue`. The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) calls `bodyAsText()` and `Json.parse(...)`. The [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) installs a converter so its service returns `Call<JsonValue>` directly. Both use `https://jsonplaceholder.typicode.com/todos/1` by default.
+Define the response shape as an interface in the same app module. Nested interfaces give normal Kotlin autocomplete at every level.
+
+```kotlin
+@Kson
+interface UserResponse {
+    val id: Long
+    val name: String
+    val address: Address
+
+    interface Address {
+        val city: String
+        val geo: Geo
+
+        interface Geo {
+            val lat: String
+            val lng: String
+        }
+    }
+}
+
+val user: UserResponse = UserResponseJson.decode(responseText)
+println(user.address.geo.lat)
+println(UserResponseJson.schema.toJson(pretty = true))
+```
+
+KSP generates the immutable implementations, decoder, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
+
+The playground is one JVM app module. Its build uses the runtime and processor dependencies:
+
+```kotlin
+plugins {
+    id("com.google.devtools.ksp") version "2.3.10"
+}
+
+dependencies {
+    implementation(project(":kson-core"))
+    ksp(project(":kson-ksp"))
+}
+```
+
+The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) decodes the response text. The [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) installs a converter so its service returns `Call<UserResponse>`. Both use `https://jsonplaceholder.typicode.com/users/1` by default.
 
 ```bash
 ./gradlew :kson-playground:run                         # run both clients
@@ -253,6 +294,7 @@ includeBuild("../kson")
 ```kotlin
 // build.gradle.kts, in commonMain or main dependencies
 implementation("<group>:kson-core:<version>")
+ksp("<group>:kson-ksp:<version>")
 ```
 
 Use the `GROUP` and `VERSION_NAME` values from this repository's `gradle.properties` for the placeholders.
@@ -260,7 +302,7 @@ Use the `GROUP` and `VERSION_NAME` values from this repository's `gradle.propert
 ### Maven local for JVM
 
 ```bash
-./gradlew :kson-core:publishJvmPublicationToMavenLocal
+./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal
 ```
 
 Add `mavenLocal()` to the consumer's repositories.
@@ -299,11 +341,12 @@ For a JVM app, add the dependency in the module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.<owner>:kson:<tag>")
+    implementation("com.github.<owner>.kson:kson-core-jvm:<tag>")
+    ksp("com.github.<owner>.kson:kson-ksp:<tag>")
 }
 ```
 
-Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. This artifact contains the JVM library.
+Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. The first artifact is the JVM library; the second runs only during compilation.
 
 ## Development
 

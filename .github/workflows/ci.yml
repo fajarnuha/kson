@@ -107,12 +107,13 @@ jobs:
           GH_REPO: ${{ github.repository }}
 
   jitpack:
-    name: Build kson-core on JitPack
+    name: Build libraries on JitPack
     if: startsWith(github.ref, 'refs/tags/') && github.event.repository.private == false
     needs: test
     runs-on: ubuntu-latest
     steps:
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/${GITHUB_REF_NAME}/kson-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-core-jvm/${GITHUB_REF_NAME}/kson-core-jvm-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-ksp/${GITHUB_REF_NAME}/kson-ksp-${GITHUB_REF_NAME}.pom" -o /dev/null
 
   publish:
     name: Publish library to GitHub Packages
@@ -129,7 +130,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :kson-core:publishAllPublicationsToGitHubPackagesRepository --console=plain
+      - run: ./gradlew :kson-core:publishAllPublicationsToGitHubPackagesRepository :kson-ksp:publishAllPublicationsToGitHubPackagesRepository --console=plain
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.ksp)
     application
 }
 
@@ -22,6 +23,7 @@ application {
 
 dependencies {
     implementation(project(":kson-core"))
+    ksp(project(":kson-ksp"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.retrofit)

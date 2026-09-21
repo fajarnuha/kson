@@ -15,4 +15,5 @@ dependencyResolutionManagement {
 rootProject.name = "kson"
 include(":kson-core")
 include(":kson-cli")
+include(":kson-ksp")
 include(":kson-playground")
