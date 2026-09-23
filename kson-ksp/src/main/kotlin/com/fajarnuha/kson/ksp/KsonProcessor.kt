@@ -1,5 +1,6 @@
 package com.fajarnuha.kson.ksp
 
+import com.google.devtools.ksp.isAbstract
 import com.google.devtools.ksp.processing.CodeGenerator
 import com.google.devtools.ksp.processing.Dependencies
 import com.google.devtools.ksp.processing.KSPLogger
@@ -72,6 +73,7 @@ private class KsonProcessor(
                 model.properties += Property(
                     property.simpleName.asString(),
                     readType(property.type.resolve(), ::readModel),
+                    hasDefault = !property.isAbstract(),
                 )
             }
             return model
@@ -97,7 +99,10 @@ private class Model(
     val typeName: String get() = declaration.qualifiedName!!.asString()
 }
 
-private data class Property(val name: String, val type: TypeRef)
+/** [hasDefault] is true when the interface gives the property a getter, which then supplies its default. */
+private data class Property(val name: String, val type: TypeRef, val hasDefault: Boolean) {
+    val required: Boolean get() = !type.nullable && !hasDefault
+}
 
 private data class TypeRef(val kind: TypeKind, val nullable: Boolean)
 
@@ -166,18 +171,24 @@ private fun buildSource(
 
     models.forEach { model ->
         appendLine()
-        appendLine("    private fun decode${model.generatedName}(value: JsonValue): ${model.typeName} =")
-        appendLine("        ${model.generatedName}Impl(")
+        appendLine("    private fun decode${model.generatedName}(value: JsonValue): ${model.typeName} {")
+        appendLine("        val fields = value.jsonObject")
+        appendLine("        val builder = ${model.generatedName}Builder()")
         model.properties.forEach { property ->
-            append("            ${property.name.identifier()} = ")
-            val lookup = if (property.type.nullable) {
-                "value.jsonObject[${property.name.quoted()}]?.takeUnless { it === JsonNull }?.let { item -> ${decodeExpression(property.type.copy(nullable = false), "item")} }"
-            } else {
-                decodeExpression(property.type, "value.jsonObject.require(${property.name.quoted()})")
+            val name = property.name.identifier()
+            val key = property.name.quoted()
+            when {
+                property.required ->
+                    appendLine("        builder.$name = ${decodeExpression(property.type, "fields.require($key)")}")
+                // A missing key keeps the builder's default; a JSON null does too unless the property is nullable.
+                property.type.nullable ->
+                    appendLine("        fields[$key]?.let { item -> builder.$name = ${decodeExpression(property.type, "item")} }")
+                else ->
+                    appendLine("        fields[$key]?.takeUnless { it === JsonNull }?.let { item -> builder.$name = ${decodeExpression(property.type, "item")} }")
             }
-            appendLine("$lookup,")
         }
-        appendLine("        )")
+        appendLine("        return builder.build()")
+        appendLine("    }")
         appendLine()
         if (model.properties.isEmpty()) {
             appendLine("    private fun encode${model.generatedName}(value: ${model.typeName}): JsonObject = JsonObject.Empty")
@@ -216,10 +227,14 @@ private fun StringBuilder.appendBuilder(model: Model, packageName: String) {
     val builder = "${model.generatedName}Builder"
     appendLine("    @JsonDsl")
     appendLine("    public class $builder internal constructor() {")
-    model.properties.forEach { property ->
+    model.properties.forEachIndexed { index, property ->
         val name = property.name.identifier()
         val type = renderType(property.type)
-        val delegate = if (property.type.nullable) "KsonProperty<$type>($owner, null)" else "KsonProperty<$type>($owner)"
+        val delegate = when {
+            property.hasDefault -> "KsonProperty<$type>($owner) { KsonDefaults().ksonDefault$index() }"
+            property.type.nullable -> "KsonProperty<$type>($owner) { null }"
+            else -> "KsonProperty<$type>($owner)"
+        }
         appendLine("        public var $name: $type by $delegate")
         when (val kind = property.type.kind) {
             is TypeKind.Object -> {
@@ -241,6 +256,23 @@ private fun StringBuilder.appendBuilder(model: Model, packageName: String) {
         }
         appendLine()
     }
+    if (model.properties.any { it.hasDefault }) {
+        // Implements the interface over this builder so an interface getter can supply a default,
+        // reading any other property it needs from the builder.
+        appendLine("        private inner class KsonDefaults : ${model.typeName} {")
+        model.properties.forEach { property ->
+            val name = property.name.identifier()
+            appendLine("            override val $name: ${renderType(property.type)} get() = this@$builder.$name")
+        }
+        model.properties.forEachIndexed { index, property ->
+            if (property.hasDefault) {
+                appendLine()
+                appendLine("            fun ksonDefault$index(): ${renderType(property.type)} = super<${model.typeName}>.${property.name.identifier()}")
+            }
+        }
+        appendLine("        }")
+        appendLine()
+    }
     appendLine("        internal fun build(): ${model.typeName} = ${model.generatedName}Impl(")
     model.properties.forEach { property ->
         appendLine("            ${property.name.identifier()} = ${property.name.identifier()},")
@@ -258,7 +290,7 @@ private fun StringBuilder.appendSchema(
     require(visiting.add(model.typeName)) { "Recursive Kson interfaces are not supported: ${model.typeName}" }
     if (includeType) appendLine("${indent}type(\"object\")")
     model.properties.forEach { property ->
-        appendLine("${indent}property(${property.name.quoted()}, required = ${!property.type.nullable}) {")
+        appendLine("${indent}property(${property.name.quoted()}, required = ${property.required}) {")
         appendTypeSchema(property.type, "$indent    ", visiting)
         appendLine("$indent}")
     }

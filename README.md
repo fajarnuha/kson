@@ -266,7 +266,7 @@ println(UserResponseJson.encode(user).toJson())
 println(UserResponseJson.schema.toJson(pretty = true))
 ```
 
-KSP generates the immutable implementations, decoder, encoder, builder DSL, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
+KSP generates the immutable implementations, decoder, encoder, builder DSL, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. A property with a getter is optional too; see [Default values](#default-values). Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
 
 The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them.
 
@@ -300,7 +300,31 @@ children {
 }
 ```
 
-Nullable properties start as `null`. Building an object throws `IllegalStateException` when a required property was never set, for example `UserResponse.Address.city is not set`. The result is the same immutable value type the decoder returns, so built values compare equal by content. Inside a nested block, properties of the outer builders are hidden, which stops `name = …` from silently setting the wrong object.
+Nullable properties start as `null` unless they have a default. Building an object throws `IllegalStateException` when a required property was never set, for example `UserResponse.Address.city is not set`. The result is the same immutable value type the decoder returns, so built values compare equal by content. Inside a nested block, properties of the outer builders are hidden, which stops `name = …` from silently setting the wrong object.
+
+### Default values
+
+Give a property a getter in the interface to make it optional with a default:
+
+```kotlin
+@Kson
+interface Settings {
+    val id: Long
+    val theme: Theme get() = Theme.LIGHT
+    val label: String get() = "settings-$id"   // defaults can read other properties
+    val nickname: String? get() = "anon"
+}
+
+settingsKson { id = 7 }.label                  // "settings-7"
+settingsKson { id = 7; nickname = null }       // an assigned value, even null, replaces the default
+SettingsJson.decode("""{"id":7}""").theme      // Theme.LIGHT
+```
+
+- **Builder.** A default is computed when the property is read, so it sees the values set in the block, even ones set later in the block.
+- **Decoder.** A missing key uses the default. So does a JSON `null`, unless the property is nullable.
+- **Encoder and schema.** The encoder writes the resolved value. The schema doesn't list the property as required.
+
+A property with a getter is still read from and written to JSON, so it acts as a default, not a derived field that is left out of the JSON.
 
 The playground is one JVM app module. Its build uses the runtime and processor dependencies:
 
