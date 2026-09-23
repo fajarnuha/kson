@@ -3,7 +3,7 @@
 A JSON toolkit for Kotlin Multiplatform:
 
 - `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
-- `kson-ksp` generates typed decoders, encoders, and JSON Schemas from Kotlin interfaces.
+- `kson-ksp` generates typed decoders, encoders, builder DSLs, and JSON Schemas from Kotlin interfaces.
 - `kson-ktor` and `kson-retrofit` let HTTP clients return `@Kson` interfaces directly (JVM).
 - `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
 - `kson-playground` is a JVM app showing KSON with Ktor and Retrofit HTTP clients.
@@ -266,9 +266,41 @@ println(UserResponseJson.encode(user).toJson())
 println(UserResponseJson.schema.toJson(pretty = true))
 ```
 
-KSP generates the immutable implementations, decoder, encoder, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
+KSP generates the immutable implementations, decoder, encoder, builder DSL, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
 
 The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them.
+
+### Builder DSL
+
+Each `@Kson` interface also gets a builder function named after it, such as `userResponseKson` for `UserResponse`:
+
+```kotlin
+val user: UserResponse = userResponseKson {
+    id = 1
+    name = "Sample"
+    address {
+        city = "Example City"
+        geo { lat = "1.2"; lng = "3.4" }
+    }
+}
+
+val copy = userResponseKson {
+    id = 2
+    name = "Other"
+    address = user.address          // assign an existing value instead of a block
+}
+```
+
+Nested interfaces use a block, such as `address { }`, or take an existing value with `=`. A `List` of interfaces also gets a block, where `add { }` builds an item and `add(value)` adds an existing one:
+
+```kotlin
+children {
+    add { name = "first" }
+    add(existingChild)
+}
+```
+
+Nullable properties start as `null`. Building an object throws `IllegalStateException` when a required property was never set, for example `UserResponse.Address.city is not set`. The result is the same immutable value type the decoder returns, so built values compare equal by content. Inside a nested block, properties of the outer builders are hidden, which stops `name = …` from silently setting the wrong object.
 
 The playground is one JVM app module. Its build uses the runtime and processor dependencies:
 

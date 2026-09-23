@@ -7,8 +7,12 @@ import com.fajarnuha.kson.JsonNumber
 import com.fajarnuha.kson.JsonObject
 import com.fajarnuha.kson.JsonValue
 import com.fajarnuha.kson.Kson
+import com.fajarnuha.kson.json
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertSame
 
 @Kson
 interface Everything {
@@ -108,4 +112,95 @@ class GeneratedCodecTest {
             encoded,
         )
     }
+
+    @Test
+    fun buildsInstancesWithTheDsl() {
+        val existing = everythingKson { requiredOnly() }.child
+        val built = everythingKson {
+            text = "t"
+            flag = true
+            count = 1
+            big = 2
+            ratio = 0.5f
+            score = 2.25
+            exact = JsonNumber.parse("1e3")
+            extra = json { "k" to 1 }
+            items = JsonArray.Empty
+            any = JsonNull
+            color = Everything.Color.RED
+            tags = listOf("x")
+            matrix = listOf(listOf(1))
+            children {
+                add { name = "first" }
+                add(existing)
+            }
+            child { name = "hand" }
+            empty { }
+            maybeChild = existing
+            maybeTags = listOf(null, "y")
+        }
+        assertEquals(
+            Json.parse(
+                """
+                {"text":"t","flag":true,"count":1,"big":2,"ratio":0.5,"score":2.25,"exact":1e3,"extra":{"k":1},
+                 "items":[],"any":null,"color":"RED","tags":["x"],"matrix":[[1]],
+                 "children":[{"name":"first"},{"name":"required"}],"child":{"name":"hand"},"empty":{},
+                 "maybeText":null,"maybeChild":{"name":"required"},"maybeTags":[null,"y"],"maybeColor":null}
+                """,
+            ),
+            EverythingJson.encode(built),
+        )
+        assertSame(existing, built.maybeChild)
+    }
+
+    @Test
+    fun builtInstancesAreValueObjects() {
+        val first = everythingKson { requiredOnly() }
+        val second = everythingKson { requiredOnly() }
+        assertEquals(first.child, second.child)
+        assertNull(first.maybeText)
+    }
+
+    @Test
+    fun reportsMissingRequiredProperties() {
+        val error = assertFailsWith<IllegalStateException> {
+            everythingKson {
+                requiredOnly()
+                child { }
+            }
+        }
+        assertEquals("Everything.Child.name is not set", error.message)
+        assertFailsWith<IllegalStateException> { everythingKson { text = "only" } }
+    }
+
+    @Test
+    fun readsBackAssignedProperties() {
+        everythingKson {
+            val error = assertFailsWith<IllegalStateException> { text }
+            assertEquals("Everything.text is not set", error.message)
+            requiredOnly()
+            count = 7
+            assertEquals(7, count)
+            assertNull(maybeColor)
+        }
+    }
+}
+
+private fun EverythingJson.EverythingBuilder.requiredOnly() {
+    text = ""
+    flag = false
+    count = 0
+    big = 0
+    ratio = 0f
+    score = 0.0
+    exact = JsonNumber(0)
+    extra = JsonObject.Empty
+    items = JsonArray.Empty
+    any = JsonNull
+    color = Everything.Color.GREEN
+    tags = emptyList()
+    matrix = emptyList()
+    children = emptyList()
+    child { name = "required" }
+    empty { }
 }

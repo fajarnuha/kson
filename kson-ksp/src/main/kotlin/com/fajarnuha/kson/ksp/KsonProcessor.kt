@@ -200,8 +200,53 @@ private fun buildSource(
             }
             appendLine("    ) : ${model.typeName}")
         }
+        appendLine()
+        appendBuilder(model, packageName)
     }
     appendLine("}")
+    appendLine()
+    val builderFunction = rootName.replaceFirstChar { it.lowercaseChar() } + "Kson"
+    appendLine("/** Builds a [${root.typeName}] with a DSL. Reading or building a required property that was never set throws [IllegalStateException]. */")
+    appendLine("public fun $builderFunction(block: ${rootName}Json.${root.generatedName}Builder.() -> Unit): ${root.typeName} =")
+    appendLine("    ${rootName}Json.${root.generatedName}Builder().apply(block).build()")
+}
+
+private fun StringBuilder.appendBuilder(model: Model, packageName: String) {
+    val owner = model.typeName.removePrefix("$packageName.").quoted()
+    val builder = "${model.generatedName}Builder"
+    appendLine("    @JsonDsl")
+    appendLine("    public class $builder internal constructor() {")
+    model.properties.forEach { property ->
+        val name = property.name.identifier()
+        val type = renderType(property.type)
+        val delegate = if (property.type.nullable) "KsonProperty<$type>($owner, null)" else "KsonProperty<$type>($owner)"
+        appendLine("        public var $name: $type by $delegate")
+        when (val kind = property.type.kind) {
+            is TypeKind.Object -> {
+                val nested = "${kind.model.generatedName}Builder"
+                appendLine()
+                appendLine("        public fun $name(block: $nested.() -> Unit) {")
+                appendLine("            $name = $nested().apply(block).build()")
+                appendLine("        }")
+            }
+            is TypeKind.ListType -> (kind.element.kind as? TypeKind.Object)?.let { element ->
+                val nested = "${element.model.generatedName}Builder"
+                val listBuilder = "KsonListBuilder<${renderType(kind.element)}, $nested>"
+                appendLine()
+                appendLine("        public fun $name(block: $listBuilder.() -> Unit) {")
+                appendLine("            $name = $listBuilder({ $nested() }, { it.build() }).apply(block).toList()")
+                appendLine("        }")
+            }
+            else -> Unit
+        }
+        appendLine()
+    }
+    appendLine("        internal fun build(): ${model.typeName} = ${model.generatedName}Impl(")
+    model.properties.forEach { property ->
+        appendLine("            ${property.name.identifier()} = ${property.name.identifier()},")
+    }
+    appendLine("        )")
+    appendLine("    }")
 }
 
 private fun StringBuilder.appendSchema(
