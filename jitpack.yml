@@ -1,4 +1,4 @@
 jdk:
   - openjdk21
 install:
-  - ./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal -PGROUP="${GROUP}.${ARTIFACT}" -PVERSION_NAME="$VERSION"
+  - ./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal :kson-ktor:publishMavenPublicationToMavenLocal :kson-retrofit:publishMavenPublicationToMavenLocal -PGROUP="${GROUP}.${ARTIFACT}" -PVERSION_NAME="$VERSION"

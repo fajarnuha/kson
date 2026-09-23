@@ -18,7 +18,7 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            tasks: ":kson-core:jvmTest :kson-core:macosArm64Test :kson-core:iosSimulatorArm64Test :kson-cli:macosArm64Test :kson-playground:test"
+            tasks: ":kson-core:jvmTest :kson-core:macosArm64Test :kson-core:iosSimulatorArm64Test :kson-cli:macosArm64Test :kson-ksp:test :kson-ktor:test :kson-retrofit:test :kson-playground:test"
           - os: ubuntu-latest
             tasks: ":kson-core:linuxX64Test :kson-cli:linuxX64Test"
           - os: windows-latest
@@ -114,6 +114,8 @@ jobs:
     steps:
       - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-core-jvm/${GITHUB_REF_NAME}/kson-core-jvm-${GITHUB_REF_NAME}.pom" -o /dev/null
       - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-ksp/${GITHUB_REF_NAME}/kson-ksp-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-ktor/${GITHUB_REF_NAME}/kson-ktor-${GITHUB_REF_NAME}.pom" -o /dev/null
+      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/github/fajarnuha/kson/kson-retrofit/${GITHUB_REF_NAME}/kson-retrofit-${GITHUB_REF_NAME}.pom" -o /dev/null
 
   publish:
     name: Publish library to GitHub Packages
@@ -130,7 +132,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :kson-core:publishAllPublicationsToGitHubPackagesRepository :kson-ksp:publishAllPublicationsToGitHubPackagesRepository --console=plain
+      - run: ./gradlew :kson-core:publishAllPublicationsToGitHubPackagesRepository :kson-ksp:publishAllPublicationsToGitHubPackagesRepository :kson-ktor:publishAllPublicationsToGitHubPackagesRepository :kson-retrofit:publishAllPublicationsToGitHubPackagesRepository --console=plain
         env:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

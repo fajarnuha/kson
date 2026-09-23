@@ -3,7 +3,8 @@
 A JSON toolkit for Kotlin Multiplatform:
 
 - `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
-- `kson-ksp` generates typed decoders and JSON Schemas from Kotlin interfaces.
+- `kson-ksp` generates typed decoders, encoders, and JSON Schemas from Kotlin interfaces.
+- `kson-ktor` and `kson-retrofit` let HTTP clients return `@Kson` interfaces directly (JVM).
 - `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
 - `kson-playground` is a JVM app showing KSON with Ktor and Retrofit HTTP clients.
 
@@ -261,10 +262,13 @@ interface UserResponse {
 
 val user: UserResponse = UserResponseJson.decode(responseText)
 println(user.address.geo.lat)
+println(UserResponseJson.encode(user).toJson())
 println(UserResponseJson.schema.toJson(pretty = true))
 ```
 
-KSP generates the immutable implementations, decoder, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
+KSP generates the immutable implementations, decoder, encoder, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
+
+The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them.
 
 The playground is one JVM app module. Its build uses the runtime and processor dependencies:
 
@@ -279,7 +283,53 @@ dependencies {
 }
 ```
 
-The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) decodes the response text. The [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) installs a converter so its service returns `Call<UserResponse>`. Both use `https://jsonplaceholder.typicode.com/users/1` by default.
+## Ktor and Retrofit
+
+`kson-ktor` and `kson-retrofit` plug into the HTTP client once. After that, any `@Kson` interface can be a request or response body without per-type registration.
+
+```kotlin
+dependencies {
+    implementation(project(":kson-ktor"))      // or
+    implementation(project(":kson-retrofit"))
+    ksp(project(":kson-ksp"))
+}
+```
+
+```kotlin
+// Ktor client (or server) ContentNegotiation
+val client = HttpClient(CIO) {
+    install(ContentNegotiation) { kson() }
+}
+val user: UserResponse = client.get(url).body()
+val users: List<UserResponse> = client.get(listUrl).body()
+client.post(url) {
+    contentType(ContentType.Application.Json)
+    setBody(user)
+}
+
+// Retrofit
+interface Api {
+    @GET("users/{id}") suspend fun user(@Path("id") id: Long): UserResponse
+    @GET("users") fun users(): Call<List<UserResponse>>
+    @POST("users") suspend fun create(@Body user: UserResponse): UserResponse
+    @POST("users/batch") suspend fun createAll(@Body users: List<@JvmSuppressWildcards UserResponse>): JsonObject
+}
+val api = Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(KsonConverterFactory.create())
+    .build()
+    .create(Api::class.java)
+```
+
+Both converters handle:
+
+- **Responses.** `@Kson` interfaces, `JsonValue` and its subtypes, and `List`, `Collection`, or `Iterable` of either. A JSON `null` decodes to Kotlin `null` for `@Kson` types. Ktor rejects it with `JsonConvertException` unless the requested type is nullable.
+- **Request bodies.** The same types, plus any class that implements exactly one `@Kson` interface. A Retrofit `@Body` of type `List<T>` needs `List<@JvmSuppressWildcards T>`, because Retrofit rejects the wildcard Kotlin adds to parameter types.
+- **Other types.** They pass to the next converter, so kson can sit before Gson, Moshi, or kotlinx.serialization.
+
+The converters find the codec for `com.example.UserResponse` at runtime by loading the generated `com.example.UserResponseJson` object. `ksonDecoderOf(Class)`, `ksonEncoderOf(Class)`, `ksonReaderOf(Type)`, and `ksonWriterOf(Type)` in `kson-core` expose the same lookup for other JVM libraries. If the interface was compiled without kson-ksp, the converter throws `IllegalStateException` naming the missing class. The `kson-core` JVM jar ships R8/ProGuard rules in `META-INF/proguard/kson.pro` that keep `@Kson` interfaces and generated decoders.
+
+The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) and [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) in the playground use these modules. Both fetch `https://jsonplaceholder.typicode.com/users/1` by default.
 
 ```bash
 ./gradlew :kson-playground:run                         # run both clients
@@ -310,7 +360,8 @@ Use the `GROUP` and `VERSION_NAME` values from this repository's `gradle.propert
 ### Maven local for JVM
 
 ```bash
-./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal
+./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal \
+    :kson-ktor:publishMavenPublicationToMavenLocal :kson-retrofit:publishMavenPublicationToMavenLocal
 ```
 
 Add `mavenLocal()` to the consumer's repositories.
@@ -351,16 +402,19 @@ For a JVM app, add the dependency in the module's `build.gradle.kts`:
 dependencies {
     implementation("com.github.<owner>.kson:kson-core-jvm:<tag>")
     ksp("com.github.<owner>.kson:kson-ksp:<tag>")
+    implementation("com.github.<owner>.kson:kson-ktor:<tag>")      // optional
+    implementation("com.github.<owner>.kson:kson-retrofit:<tag>")  // optional
 }
 ```
 
-Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. The first artifact is the JVM library; the second runs only during compilation.
+Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. `kson-core-jvm` is the JVM library, and `kson-ksp` runs only during compilation.
 
 ## Development
 
 ```bash
 ./gradlew :kson-core:jvmTest          # includes a parity suite checked against Jackson
 ./gradlew :kson-core:allTests :kson-cli:allTests
+./gradlew :kson-ksp:test :kson-ktor:test :kson-retrofit:test :kson-playground:test
 
 # jq parity: build the CLI, then compare against a jq 1.7.1 binary
 ./gradlew :kson-cli:linkReleaseExecutableLinuxX64

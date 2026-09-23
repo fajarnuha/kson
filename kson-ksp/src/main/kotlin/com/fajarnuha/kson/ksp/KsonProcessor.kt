@@ -102,7 +102,12 @@ private data class Property(val name: String, val type: TypeRef)
 private data class TypeRef(val kind: TypeKind, val nullable: Boolean)
 
 private sealed interface TypeKind {
-    data class Scalar(val kotlinType: String, val decode: String, val schemaType: String?) : TypeKind
+    data class Scalar(
+        val kotlinType: String,
+        val decode: String,
+        val schemaType: String?,
+        val encode: String? = null,
+    ) : TypeKind
     data class Object(val model: Model) : TypeKind
     data class ListType(val element: TypeRef) : TypeKind
     data class EnumType(val declaration: KSClassDeclaration) : TypeKind
@@ -115,12 +120,12 @@ private fun readType(type: KSType, readModel: (KSClassDeclaration) -> Model): Ty
         ?: throw IllegalArgumentException("Unsupported local Kson property type: $type")
     val nullable = type.nullability == Nullability.NULLABLE
     val kind = when (qualifiedName) {
-        "kotlin.String" -> TypeKind.Scalar("String", ".string", "string")
-        "kotlin.Boolean" -> TypeKind.Scalar("Boolean", ".boolean", "boolean")
-        "kotlin.Int" -> TypeKind.Scalar("Int", ".int", "integer")
-        "kotlin.Long" -> TypeKind.Scalar("Long", ".long", "integer")
-        "kotlin.Float" -> TypeKind.Scalar("Float", ".float", "number")
-        "kotlin.Double" -> TypeKind.Scalar("Double", ".double", "number")
+        "kotlin.String" -> TypeKind.Scalar("String", ".string", "string", "JsonString")
+        "kotlin.Boolean" -> TypeKind.Scalar("Boolean", ".boolean", "boolean", "JsonBool.of")
+        "kotlin.Int" -> TypeKind.Scalar("Int", ".int", "integer", "JsonNumber")
+        "kotlin.Long" -> TypeKind.Scalar("Long", ".long", "integer", "JsonNumber")
+        "kotlin.Float" -> TypeKind.Scalar("Float", ".float", "number", "JsonNumber")
+        "kotlin.Double" -> TypeKind.Scalar("Double", ".double", "number", "JsonNumber")
         "com.fajarnuha.kson.JsonNumber" -> TypeKind.Scalar(qualifiedName, ".number", "number")
         "com.fajarnuha.kson.JsonObject" -> TypeKind.Scalar(qualifiedName, ".jsonObject", "object")
         "com.fajarnuha.kson.JsonArray" -> TypeKind.Scalar(qualifiedName, ".jsonArray", "array")
@@ -149,11 +154,12 @@ private fun buildSource(
     appendLine()
     appendLine("import com.fajarnuha.kson.*")
     appendLine()
-    appendLine("public object ${rootName}Json {")
-    appendLine("    public fun decode(text: String): ${root.typeName} = decode(Json.parse(text))")
-    appendLine("    public fun decode(value: JsonValue): ${root.typeName} = decode${root.generatedName}(value)")
+    appendLine("public object ${rootName}Json : KsonDecoder<${root.typeName}>, KsonEncoder<${root.typeName}> {")
+    appendLine("    override fun decode(text: String): ${root.typeName} = decode(Json.parse(text))")
+    appendLine("    override fun decode(value: JsonValue): ${root.typeName} = decode${root.generatedName}(value)")
+    appendLine("    override fun encode(value: ${root.typeName}): JsonObject = encode${root.generatedName}(value)")
     appendLine()
-    appendLine("    public val schema: JsonObject = jsonSchema {")
+    appendLine("    override val schema: JsonObject = jsonSchema {")
     appendLine("        title(${rootName.quoted()})")
     appendSchema(root, "        ", mutableSetOf())
     appendLine("    }")
@@ -172,6 +178,18 @@ private fun buildSource(
             appendLine("$lookup,")
         }
         appendLine("        )")
+        appendLine()
+        if (model.properties.isEmpty()) {
+            appendLine("    private fun encode${model.generatedName}(value: ${model.typeName}): JsonObject = JsonObject.Empty")
+        } else {
+            appendLine("    private fun encode${model.generatedName}(value: ${model.typeName}): JsonObject =")
+            appendLine("        JsonObject(linkedMapOf<String, JsonValue>(")
+            model.properties.forEach { property ->
+                val encoded = encodeExpression(property.type, "value.${property.name.identifier()}")
+                appendLine("            ${property.name.quoted()} to $encoded,")
+            }
+            appendLine("        ))")
+        }
         appendLine()
         if (model.properties.isEmpty()) {
             appendLine("    private class ${model.generatedName}Impl : ${model.typeName}")
@@ -239,6 +257,18 @@ private fun decodeExpression(type: TypeRef, value: String): String {
         is TypeKind.EnumType -> "enumValueOf<${kind.declaration.qualifiedName!!.asString()}>($value.string)"
     }
     return if (type.nullable) "$value.takeUnless { it === JsonNull }?.let { item -> ${decodeExpression(type.copy(nullable = false), "item")} }" else decoded
+}
+
+private fun encodeExpression(type: TypeRef, value: String): String {
+    if (type.nullable) {
+        return "($value?.let { item -> ${encodeExpression(type.copy(nullable = false), "item")} } ?: JsonNull)"
+    }
+    return when (val kind = type.kind) {
+        is TypeKind.Scalar -> kind.encode?.let { "$it($value)" } ?: value
+        is TypeKind.Object -> "encode${kind.model.generatedName}($value)"
+        is TypeKind.ListType -> "JsonArray($value.map { item -> ${encodeExpression(kind.element, "item")} })"
+        is TypeKind.EnumType -> "JsonString($value.name)"
+    }
 }
 
 private fun renderType(type: TypeRef): String {

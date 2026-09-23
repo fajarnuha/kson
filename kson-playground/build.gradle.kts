@@ -23,9 +23,11 @@ application {
 
 dependencies {
     implementation(project(":kson-core"))
+    implementation(project(":kson-ktor"))
+    implementation(project(":kson-retrofit"))
     ksp(project(":kson-ksp"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
-    implementation(libs.retrofit)
+    implementation(libs.ktor.client.content.negotiation)
     testImplementation(libs.kotlin.test)
 }

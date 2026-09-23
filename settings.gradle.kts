@@ -16,4 +16,6 @@ rootProject.name = "kson"
 include(":kson-core")
 include(":kson-cli")
 include(":kson-ksp")
+include(":kson-ktor")
+include(":kson-retrofit")
 include(":kson-playground")

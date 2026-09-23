@@ -7,6 +7,7 @@ plugins {
 }
 
 kotlin {
+    explicitApi()
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_11)
     }
@@ -19,10 +20,11 @@ java {
 }
 
 dependencies {
-    implementation(libs.ksp.api)
+    api(project(":kson-core"))
+    api(libs.retrofit)
     kspTest(project(":kson-ksp"))
-    testImplementation(project(":kson-core"))
     testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.core)
 }
 
 publishing {
@@ -30,8 +32,8 @@ publishing {
         create<MavenPublication>("maven") {
             from(components["java"])
             pom {
-                name.set("kson-ksp")
-                description.set("KSP-generated typed JSON decoders and schemas for kson.")
+                name.set("kson-retrofit")
+                description.set("Retrofit converter factory for kson values and @Kson interfaces.")
                 url.set("https://github.com/fajarnuha/kson")
                 licenses {
                     license {
