@@ -58,7 +58,6 @@ Commands:
   query <filter> [file...]   Run a jq filter (same as the default mode)
   fmt [file]                 Pretty-print JSON
   min [file]                 Minify JSON
-  convert [file]             Convert JSON to kson Kotlin builder code
   model [file]               Generate an @Kson interface from a JSON object
   validate [file]            Check that input is valid JSON (exit 1 if not)
   get <pointer> [file]       Print the value at an RFC 6901 JSON Pointer, e.g. /users/0/name
@@ -113,7 +112,7 @@ Colors can be customized with JQ_COLORS, e.g. JQ_COLORS='0;90:0;37:0;37:0;37:0;3
 """.trimIndent()
 
 private val COMMANDS = setOf(
-    "help", "version", "query", "q", "fmt", "format", "pretty", "min", "minify", "convert", "model",
+    "help", "version", "query", "q", "fmt", "format", "pretty", "min", "minify", "model",
     "validate", "get", "keys", "type", "paths", "schema", "merge", "build",
 )
 
@@ -251,7 +250,6 @@ fun runCli(args: List<String>, io: CliIo): Int {
             "query", "q" -> query(rest, io)
             "fmt", "format", "pretty" -> withInput(rest, command, io) { v, o -> io.line(v.toJson(format(o, io))); 0 }
             "min", "minify" -> withInput(rest, command, io) { v, o -> io.line(v.toJson(format(o, io, defaultPretty = false))); 0 }
-            "convert" -> withInput(rest, command, io) { v, _ -> io.line(renderKsonDsl(v)); 0 }
             "model" -> model(rest, io)
             "validate" -> validate(rest, io)
             "get" -> get(rest, io)
@@ -517,38 +515,6 @@ private fun build(args: List<String>, io: CliIo): Int {
     }
     io.line(result.toJson(format(o, io)))
     return 0
-}
-
-private fun renderKsonDsl(value: JsonValue, depth: Int = 0, nested: Boolean = false): String {
-    val indent = "    ".repeat(depth)
-    val childIndent = "    ".repeat(depth + 1)
-    return when (value) {
-        is JsonObject -> if (value.isEmpty()) "json { }" else buildString {
-            append("json {\n")
-            for ((key, item) in value.fields) {
-                append(childIndent).append(kotlinString(key)).append(" to ")
-                append(renderKsonDsl(item, depth + 1, nested = true)).append('\n')
-            }
-            append(indent).append('}')
-        }
-        is JsonArray -> if (value.isEmpty()) "jsonArrayOf()" else buildString {
-            append("jsonArrayOf(\n")
-            value.items.forEachIndexed { index, item ->
-                append(childIndent).append(renderKsonDsl(item, depth + 1, nested = true))
-                if (index < value.lastIndex) append(',')
-                append('\n')
-            }
-            append(indent).append(')')
-        }
-        is JsonString -> kotlinString(value.value).let { if (nested) it else "JsonString($it)" }
-        is JsonNumber -> if (nested && value.literal != "-0" && value.literal.toIntOrNull() != null) {
-            value.literal
-        } else {
-            "JsonNumber.parse(\"${value.literal}\")"
-        }
-        is JsonBool -> if (nested) value.value.toString() else "JsonBool.of(${value.value})"
-        JsonNull -> if (nested) "null" else "JsonNull"
-    }
 }
 
 internal fun kotlinString(value: String): String = buildString {

@@ -202,7 +202,6 @@ Subcommands:
 
 ```
 kson fmt data.json                 # pretty-print
-kson convert data.json             # generate Kotlin builder code for the same JSON value
 kson model --package com.example data.json # generate an @Kson interface
 kson min data.json                 # minify
 kson validate data.json            # exit 1 with file:line:column on error
@@ -217,8 +216,6 @@ kson build -a one :=2 ':={"three":3}'
 ```
 
 Subcommands exit with 0 for success, 1 for invalid JSON or a missing pointer, and 2 for usage errors.
-
-`convert` reads one JSON value from a file or stdin and prints a Kotlin expression using the `kson-core` builder DSL. Import `com.fajarnuha.kson.*` when using the generated code. Numbers that cannot be written as exact `Int` literals use `JsonNumber.parse(...)` to keep their original JSON text.
 
 `model` reads a JSON object and prints an `@Kson` interface to stdout. The root name comes from the filename, or defaults to `Model` for stdin. Use `--name` to override it and `--package` (or `--package-name`) to add a package declaration.
 

@@ -182,35 +182,6 @@ class CliTest {
     }
 
     @Test
-    fun convertJsonToKsonDsl() {
-        val input = """{"name":"A${'$'}","items":[true,null,1.25,{"big":123456789012345678901234567890}],"empty":[],"nested":{}}"""
-        assertEquals(
-            """json {
-                |    "name" to "A\${'$'}"
-                |    "items" to jsonArrayOf(
-                |        true,
-                |        null,
-                |        JsonNumber.parse("1.25"),
-                |        json {
-                |            "big" to JsonNumber.parse("123456789012345678901234567890")
-                |        }
-                |    )
-                |    "empty" to jsonArrayOf()
-                |    "nested" to json { }
-                |}""".trimMargin(),
-            run("convert", "input.json", files = mapOf("input.json" to input)).out,
-        )
-        assertEquals("JsonNull", run("convert", stdin = "null").out)
-        assertEquals("JsonBool.of(false)", run("convert", stdin = "false").out)
-        assertEquals("JsonNumber.parse(\"-0\")", run("convert", stdin = "-0").out)
-        assertEquals("jsonArrayOf()", run("convert", stdin = "[]").out)
-        assertEquals("""JsonString("\u00e9\${'$'}x")""", run("convert", stdin = """"é${'$'}x"""").out)
-        assertEquals("""JsonString("\u000c")""", run("convert", stdin = "\"\\f\"").out)
-        assertEquals("""JsonString("\\f")""", run("convert", stdin = "\"\\\\f\"").out)
-        assertEquals(1, run("convert", stdin = "{bad}").code)
-    }
-
-    @Test
     fun generateTypedKsonModel() {
         val input = """{"id":1,"display-name":"A","address":{"city":"X","geo":{"lat":"-1"}},"users":[{"id":1,"nickname":"A"},{"id":2}],"empty":[],"unknown":null}"""
         assertEquals(
