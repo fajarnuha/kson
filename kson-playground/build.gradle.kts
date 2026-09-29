@@ -22,7 +22,7 @@ application {
 }
 
 dependencies {
-    implementation(project(":kson-core"))
+    implementation(project(":kson"))
     implementation(project(":kson-ktor"))
     implementation(project(":kson-retrofit"))
     ksp(project(":kson-ksp"))

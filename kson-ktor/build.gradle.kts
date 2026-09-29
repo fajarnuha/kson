@@ -20,7 +20,7 @@ java {
 }
 
 dependencies {
-    api(project(":kson-core"))
+    api(project(":kson"))
     api(libs.ktor.serialization)
     kspTest(project(":kson-ksp"))
     testImplementation(libs.kotlin.test)

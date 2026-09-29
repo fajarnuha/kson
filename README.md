@@ -2,7 +2,7 @@
 
 A JSON toolkit for Kotlin Multiplatform:
 
-- `kson-core` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
+- `kson` provides JSON values, a builder DSL, parsing, writing, JSON Pointer, jq-compatible queries, and JSON Schema inference.
 - `kson-ksp` generates typed decoders, encoders, builder DSLs, and JSON Schemas from Kotlin interfaces.
 - `kson-ktor` and `kson-retrofit` let HTTP clients return `@Kson` interfaces directly (JVM).
 - `kson-cli` provides the native `kson` command for formatting JSON and running jq filters.
@@ -80,7 +80,7 @@ The immutable model supports `obj + other`, `obj + ("k" to v)`, `obj - "k"`, `de
 
 ## jq queries
 
-`kson-core` runs jq filters in Kotlin. The CLI accepts the same filters.
+`kson` runs jq filters in Kotlin. The CLI accepts the same filters.
 
 ```kotlin
 val doc = Json.parse(text)
@@ -331,7 +331,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":kson-core"))
+    implementation(project(":kson"))
     ksp(project(":kson-ksp"))
 }
 ```
@@ -380,7 +380,7 @@ Both converters handle:
 - **Request bodies.** The same types, plus any class that implements exactly one `@Kson` interface. A Retrofit `@Body` of type `List<T>` needs `List<@JvmSuppressWildcards T>`, because Retrofit rejects the wildcard Kotlin adds to parameter types.
 - **Other types.** They pass to the next converter, so kson can sit before Gson, Moshi, or kotlinx.serialization.
 
-The converters find the codec for `com.example.UserResponse` at runtime by loading the generated `com.example.UserResponseJson` object. `ksonDecoderOf(Class)`, `ksonEncoderOf(Class)`, `ksonReaderOf(Type)`, and `ksonWriterOf(Type)` in `kson-core` expose the same lookup for other JVM libraries. If the interface was compiled without kson-ksp, the converter throws `IllegalStateException` naming the missing class. The `kson-core` JVM jar ships R8/ProGuard rules in `META-INF/proguard/kson.pro` that keep `@Kson` interfaces and generated decoders.
+The converters find the codec for `com.example.UserResponse` at runtime by loading the generated `com.example.UserResponseJson` object. `ksonDecoderOf(Class)`, `ksonEncoderOf(Class)`, `ksonReaderOf(Type)`, and `ksonWriterOf(Type)` in `kson` expose the same lookup for other JVM libraries. If the interface was compiled without kson-ksp, the converter throws `IllegalStateException` naming the missing class. The `kson` JVM jar ships R8/ProGuard rules in `META-INF/proguard/kson.pro` that keep `@Kson` interfaces and generated decoders.
 
 The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/KtorExample.kt) and [Retrofit example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground/RetrofitExample.kt) in the playground use these modules. Both fetch `https://jsonplaceholder.typicode.com/users/1` by default.
 
@@ -404,16 +404,17 @@ includeBuild("../kson")
 
 ```kotlin
 // build.gradle.kts, in commonMain or main dependencies
-implementation("<group>:kson-core:<version>")
-ksp("<group>:kson-ksp:<version>")
+implementation("com.fajarnuha.kson:kson:<version>")
+ksp("com.fajarnuha.kson:kson-ksp:<version>")
 ```
 
-Use the `GROUP` and `VERSION_NAME` values from this repository's `gradle.properties` for the placeholders.
+Use the `VERSION_NAME` value from this repository's `gradle.properties` for `<version>`.
 
 ### Maven local for JVM
 
 ```bash
-./gradlew :kson-core:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal \
+./gradlew :kson:publishKotlinMultiplatformPublicationToMavenLocal :kson:publishJvmPublicationToMavenLocal \
+    :kson-ksp:publishMavenPublicationToMavenLocal \
     :kson-ktor:publishMavenPublicationToMavenLocal :kson-retrofit:publishMavenPublicationToMavenLocal
 ```
 
@@ -453,20 +454,20 @@ For a JVM app, add the dependency in the module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.<owner>.kson:kson-core-jvm:<tag>")
+    implementation("com.github.<owner>.kson:kson:<tag>")
     ksp("com.github.<owner>.kson:kson-ksp:<tag>")
     implementation("com.github.<owner>.kson:kson-ktor:<tag>")      // optional
     implementation("com.github.<owner>.kson:kson-retrofit:<tag>")  // optional
 }
 ```
 
-Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. `kson-core-jvm` is the JVM library, and `kson-ksp` runs only during compilation.
+Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. `kson` is the library (Gradle picks `kson-jvm` for JVM projects), and `kson-ksp` runs only during compilation.
 
 ## Development
 
 ```bash
-./gradlew :kson-core:jvmTest          # includes a parity suite checked against Jackson
-./gradlew :kson-core:allTests :kson-cli:allTests
+./gradlew :kson:jvmTest          # includes a parity suite checked against Jackson
+./gradlew :kson:allTests :kson-cli:allTests
 ./gradlew :kson-ksp:test :kson-ktor:test :kson-retrofit:test :kson-playground:test
 
 # jq parity: build the CLI, then compare against a jq 1.7.1 binary

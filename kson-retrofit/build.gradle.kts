@@ -20,7 +20,7 @@ java {
 }
 
 dependencies {
-    api(project(":kson-core"))
+    api(project(":kson"))
     api(libs.retrofit)
     kspTest(project(":kson-ksp"))
     testImplementation(libs.kotlin.test)

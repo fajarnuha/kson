@@ -12,8 +12,8 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "kson"
-include(":kson-core")
+rootProject.name = "kson-root"
+include(":kson")
 include(":kson-cli")
 include(":kson-ksp")
 include(":kson-ktor")

@@ -20,7 +20,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(project(":kson-core"))
+            implementation(project(":kson"))
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

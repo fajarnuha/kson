@@ -21,7 +21,7 @@ java {
 dependencies {
     implementation(libs.ksp.api)
     kspTest(project(":kson-ksp"))
-    testImplementation(project(":kson-core"))
+    testImplementation(project(":kson"))
     testImplementation(libs.kotlin.test)
 }
 
