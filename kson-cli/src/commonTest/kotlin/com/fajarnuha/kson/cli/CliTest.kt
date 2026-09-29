@@ -191,26 +191,26 @@ class CliTest {
                 |import com.fajarnuha.kson.JsonValue
                 |
                 |@Kson
-                |public interface UserResponse {
-                |    public val id: Long
-                |    public val `display-name`: String
-                |    public val address: Address
-                |    public val users: List<UsersItem>
-                |    public val empty: List<JsonValue>
-                |    public val unknown: JsonValue?
+                |interface UserResponse {
+                |    val id: Long
+                |    val `display-name`: String
+                |    val address: Address
+                |    val users: List<UsersItem>
+                |    val empty: List<JsonValue>
+                |    val unknown: JsonValue?
                 |
-                |    public interface Address {
-                |        public val city: String
-                |        public val geo: Geo
+                |    interface Address {
+                |        val city: String
+                |        val geo: Geo
                 |
-                |        public interface Geo {
-                |            public val lat: String
+                |        interface Geo {
+                |            val lat: String
                 |        }
                 |    }
                 |
-                |    public interface UsersItem {
-                |        public val id: Long
-                |        public val nickname: String?
+                |    interface UsersItem {
+                |        val id: Long
+                |        val nickname: String?
                 |    }
                 |}""".trimMargin(),
             run("model", "--name", "UserResponse", "--package", "com.example", stdin = input).out,

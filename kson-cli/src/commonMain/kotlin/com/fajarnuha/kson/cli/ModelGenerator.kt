@@ -73,11 +73,11 @@ private fun kotlinType(schema: JsonObject, suggestedName: String, nested: Mutabl
 private fun StringBuilder.appendModel(model: Model, annotation: Boolean, indent: String = "") {
     if (annotation) appendLine("${indent}@Kson")
     if (model.properties.isEmpty() && model.nested.isEmpty()) {
-        appendLine("${indent}public interface ${model.name}")
+        appendLine("${indent}interface ${model.name}")
         return
     }
-    appendLine("${indent}public interface ${model.name} {")
-    model.properties.forEach { appendLine("$indent    public val ${it.name}: ${it.type}") }
+    appendLine("${indent}interface ${model.name} {")
+    model.properties.forEach { appendLine("$indent    val ${it.name}: ${it.type}") }
     model.nested.forEach {
         appendLine()
         appendModel(it, annotation = false, indent = "$indent    ")
