@@ -153,7 +153,7 @@ println(todoSchema.toJson(pretty = true))
 On macOS, install the release binary with Homebrew:
 
 ```bash
-brew install fajarnuha/kson/kson
+brew install fajarnuha/tools/kson
 kson --version
 ```
 
