@@ -426,7 +426,7 @@ Pushing a `v*` tag publishes the library to GitHub Packages. Consumers need a to
 
 ```kotlin
 repositories {
-    maven("https://maven.pkg.github.com/<owner>/kson") {
+    maven("https://maven.pkg.github.com/fajarnuha/kson") {
         credentials {
             username = providers.gradleProperty("gpr.user").get()
             password = providers.gradleProperty("gpr.key").get()
@@ -434,8 +434,6 @@ repositories {
     }
 }
 ```
-
-Replace `<owner>` with the GitHub account that owns the repository.
 
 ### JitPack
 
@@ -454,14 +452,14 @@ For a JVM app, add the dependency in the module's `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    implementation("com.github.<owner>.kson:kson:<tag>")
-    ksp("com.github.<owner>.kson:kson-ksp:<tag>")
-    implementation("com.github.<owner>.kson:kson-ktor:<tag>")      // optional
-    implementation("com.github.<owner>.kson:kson-retrofit:<tag>")  // optional
+    implementation("com.fajarnuha.kson:kson:<tag>")
+    ksp("com.fajarnuha.kson:kson-ksp:<tag>")
+    implementation("com.fajarnuha.kson:kson-ktor:<tag>")      // optional
+    implementation("com.fajarnuha.kson:kson-retrofit:<tag>")  // optional
 }
 ```
 
-Replace `<owner>` with the GitHub account and `<tag>` with a pushed tag. `kson` is the library (Gradle picks `kson-jvm` for JVM projects), and `kson-ksp` runs only during compilation.
+Replace `<tag>` with a pushed tag, such as `v0.6.0`. JitPack serves this repository under `com.fajarnuha` through the `git.fajarnuha.com` DNS record; the older `com.github.fajarnuha.kson` coordinates also work. `kson` is the library (Gradle picks `kson-jvm` for JVM projects), and `kson-ksp` runs only during compilation.
 
 ## Development
 
