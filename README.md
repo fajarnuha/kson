@@ -10,6 +10,171 @@ A JSON toolkit for Kotlin Multiplatform:
 
 Targets: JVM, macOS (arm64/x64), Linux (x64/arm64), Windows (mingwX64), iOS (arm64/simulator/x64).
 
+## Quick start
+
+This walkthrough turns a raw JSON response into a typed DTO that Ktor or Retrofit returns directly.
+
+### 1. Add the dependencies
+
+kson is published on JitPack. Add the repository in `settings.gradle.kts`:
+
+```kotlin
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        maven("https://jitpack.io")
+    }
+}
+```
+
+Then apply KSP and add the library in the module's `build.gradle.kts`:
+
+```kotlin
+plugins {
+    kotlin("jvm") version "2.4.10"
+    id("com.google.devtools.ksp") version "2.3.10"
+}
+
+dependencies {
+    implementation("com.fajarnuha.kson:kson:v0.6.0")
+    ksp("com.fajarnuha.kson:kson-ksp:v0.6.0")
+
+    // Ktor client
+    implementation("com.fajarnuha.kson:kson-ktor:v0.6.0")
+    implementation("io.ktor:ktor-client-cio:3.6.0")
+    implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
+
+    // or Retrofit
+    implementation("com.fajarnuha.kson:kson-retrofit:v0.6.0")
+}
+```
+
+JitPack versions are git tags, so they keep the `v`. `kson-ktor` and `kson-retrofit` already depend on `kson`, so you can leave it out when you use one of them.
+
+### 2. Generate a model from a JSON response
+
+Start from a response the API really returns:
+
+```json
+{
+  "id": 1,
+  "name": "Leanne Graham",
+  "email": "leanne@example.com",
+  "address": {
+    "city": "Gwenborough",
+    "geo": { "lat": "-37.3159", "lng": "81.1496" }
+  },
+  "tags": ["admin", "beta"]
+}
+```
+
+Pipe it into [`kson model`](#cli) to get an `@Kson` interface:
+
+```bash
+curl -s https://api.example.com/users/1 \
+  | kson model --name User --package com.example.api > src/main/kotlin/com/example/api/User.kt
+```
+
+```kotlin
+package com.example.api
+
+import com.fajarnuha.kson.Kson
+
+@Kson
+public interface User {
+    public val id: Long
+    public val name: String
+    public val email: String
+    public val address: Address
+    public val tags: List<String>
+
+    public interface Address {
+        public val city: String
+        public val geo: Geo
+
+        public interface Geo {
+            public val lat: String
+            public val lng: String
+        }
+    }
+}
+```
+
+A single sample can't show which fields are optional, so adjust the interface before you rely on it. Make a property nullable when the API may omit it, or give it a getter to supply a [default](#default-values):
+
+```kotlin
+public val email: String?                          // may be missing or null
+public val tags: List<String> get() = emptyList()  // missing -> empty list
+```
+
+On the next build, KSP generates a `UserJson` object that decodes, encodes, and describes `User` as a JSON Schema, plus a `userKson { }` builder.
+
+### 3. Use it as the API response type
+
+With Ktor, install the kson converter once. Every `@Kson` interface then works as a response or request body:
+
+```kotlin
+val client = HttpClient(CIO) {
+    install(ContentNegotiation) { kson() }
+}
+
+val user: User = client.get("https://api.example.com/users/1").body()
+println(user.address.geo.lat)
+
+val users: List<User> = client.get("https://api.example.com/users").body()
+```
+
+With Retrofit, add the converter factory and declare `User` in the service interface:
+
+```kotlin
+interface UserApi {
+    @GET("users/{id}") suspend fun user(@Path("id") id: Long): User
+    @POST("users") suspend fun create(@Body user: User): User
+}
+
+val api = Retrofit.Builder()
+    .baseUrl("https://api.example.com/")
+    .addConverterFactory(KsonConverterFactory.create())
+    .build()
+    .create(UserApi::class.java)
+
+val created: User = api.create(
+    userKson {
+        id = 2
+        name = "Ervin Howell"
+        email = "ervin@example.com"
+        address {
+            city = "Wisokyburgh"
+            geo { lat = "-43.9509"; lng = "-34.4618" }
+        }
+    }
+)
+```
+
+The same model works without an HTTP client:
+
+```kotlin
+val user: User = UserJson.decode(responseText)
+val body: String = UserJson.encode(user).toJson()
+```
+
+See [Typed responses with KSP](#typed-responses-with-ksp) and [Ktor and Retrofit](#ktor-and-retrofit) for the details. The rest of this README covers the untyped JSON API, jq queries, JSON Schema, and the CLI.
+
+### GitHub Packages
+
+Each release is also published to GitHub Packages as `com.fajarnuha.kson:<module>:0.6.0`, without the `v`. GitHub requires a login even for public packages, so consumers need a classic personal access token with the `read:packages` scope:
+
+```kotlin
+repositories {
+    maven("https://maven.pkg.github.com/fajarnuha/kson") {
+        credentials {
+            username = providers.gradleProperty("gpr.user").get()
+            password = providers.gradleProperty("gpr.key").get()
+        }
+    }
+}
+```
+
 ## Builder DSL
 
 ```kotlin
@@ -323,30 +488,9 @@ SettingsJson.decode("""{"id":7}""").theme      // Theme.LIGHT
 
 A property with a getter is still read from and written to JSON, so it acts as a default, not a derived field that is left out of the JSON.
 
-The playground is one JVM app module. Its build uses the runtime and processor dependencies:
-
-```kotlin
-plugins {
-    id("com.google.devtools.ksp") version "2.3.10"
-}
-
-dependencies {
-    implementation(project(":kson"))
-    ksp(project(":kson-ksp"))
-}
-```
-
 ## Ktor and Retrofit
 
-`kson-ktor` and `kson-retrofit` plug into the HTTP client once. After that, any `@Kson` interface can be a request or response body without per-type registration.
-
-```kotlin
-dependencies {
-    implementation(project(":kson-ktor"))      // or
-    implementation(project(":kson-retrofit"))
-    ksp(project(":kson-ksp"))
-}
-```
+`kson-ktor` and `kson-retrofit` plug into the HTTP client once. After that, any `@Kson` interface can be a request or response body without per-type registration. [Quick start](#quick-start) lists the dependencies.
 
 ```kotlin
 // Ktor client (or server) ContentNegotiation
@@ -391,75 +535,6 @@ The [Ktor example](kson-playground/src/main/kotlin/com/fajarnuha/kson/playground
 ./gradlew :kson-playground:run --args='ktor https://example.com/data.json'
 ./gradlew :kson-playground:test                        # local HTTP test; no public service required
 ```
-
-## Using the library in another project
-
-### Composite build
-
-Add the repository as an included build in the consumer's `settings.gradle.kts`:
-
-```kotlin
-includeBuild("../kson")
-```
-
-```kotlin
-// build.gradle.kts, in commonMain or main dependencies
-implementation("com.fajarnuha.kson:kson:<version>")
-ksp("com.fajarnuha.kson:kson-ksp:<version>")
-```
-
-Use the `VERSION_NAME` value from this repository's `gradle.properties` for `<version>`.
-
-### Maven local for JVM
-
-```bash
-./gradlew :kson:publishKotlinMultiplatformPublicationToMavenLocal :kson:publishJvmPublicationToMavenLocal \
-    :kson-ksp:publishMavenPublicationToMavenLocal \
-    :kson-ktor:publishMavenPublicationToMavenLocal :kson-retrofit:publishMavenPublicationToMavenLocal
-```
-
-Add `mavenLocal()` to the consumer's repositories.
-
-### GitHub Packages
-
-Pushing a `v*` tag publishes the library to GitHub Packages. Consumers need a token with `read:packages`:
-
-```kotlin
-repositories {
-    maven("https://maven.pkg.github.com/fajarnuha/kson") {
-        credentials {
-            username = providers.gradleProperty("gpr.user").get()
-            password = providers.gradleProperty("gpr.key").get()
-        }
-    }
-}
-```
-
-### JitPack
-
-CI requests a JitPack build for each pushed tag. Add JitPack to the consumer's `settings.gradle.kts`:
-
-```kotlin
-dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven { url = uri("https://jitpack.io") }
-    }
-}
-```
-
-For a JVM app, add the dependency in the module's `build.gradle.kts`:
-
-```kotlin
-dependencies {
-    implementation("com.fajarnuha.kson:kson:<tag>")
-    ksp("com.fajarnuha.kson:kson-ksp:<tag>")
-    implementation("com.fajarnuha.kson:kson-ktor:<tag>")      // optional
-    implementation("com.fajarnuha.kson:kson-retrofit:<tag>")  // optional
-}
-```
-
-Replace `<tag>` with a pushed tag, such as `v0.6.0`. JitPack serves this repository under `com.fajarnuha` through the `git.fajarnuha.com` DNS record; the older `com.github.fajarnuha.kson` coordinates also work. `kson` is the library (Gradle picks `kson-jvm` for JVM projects), and `kson-ksp` runs only during compilation.
 
 ## Development
 
