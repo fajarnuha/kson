@@ -44,43 +44,27 @@ private class KsonProcessor(
         return symbols.filterNot { it.validate() }
     }
 
+    private val reached = mutableMapOf<String, Set<String>>()
+
     private fun generate(root: KSClassDeclaration) {
         require(root.typeParameters.isEmpty()) { "@Kson interfaces cannot have type parameters" }
         val packageName = root.packageName.asString()
         val rootName = root.simpleName.asString()
-        val models = linkedMapOf<String, Model>()
-
-        fun readModel(declaration: KSClassDeclaration): Model {
-            val qualifiedName = requireNotNull(declaration.qualifiedName?.asString()) {
-                "@Kson interfaces must have a qualified name"
-            }
-            models[qualifiedName]?.let { return it }
-            require(declaration.classKind == ClassKind.INTERFACE) {
-                "Unsupported property type $qualifiedName: use an interface for nested JSON objects"
-            }
-            require(declaration.typeParameters.isEmpty()) {
-                "Nested Kson interfaces cannot have type parameters: $qualifiedName"
-            }
-            val model = Model(
-                declaration = declaration,
-                generatedName = qualifiedName.removePrefix("$packageName.").replace('.', '_'),
-            )
-            models[qualifiedName] = model
-            declaration.getAllProperties().forEach { property ->
-                require(!property.isMutable) {
-                    "Kson properties must be val: ${property.simpleName.asString()}"
-                }
-                model.properties += Property(
-                    property.simpleName.asString(),
-                    readType(property.type.resolve(), ::readModel),
-                    hasDefault = !property.isAbstract(),
-                )
-            }
-            return model
+        val models = readModels(root)
+        models.values.forEach { model ->
+            model.owner = ownerOf(model.declaration, root)
+            model.local = model.owner.qualifiedName?.asString() == root.qualifiedName?.asString()
         }
-
-        val rootModel = readModel(root)
-        val source = buildSource(packageName, rootName, rootModel, models.values.toList())
+        // Models owned by another @Kson interface are decoded through its generated object, so only
+        // follow references until they leave this root.
+        val owned = linkedSetOf<Model>()
+        fun visit(model: Model) {
+            if (!model.local || !owned.add(model)) return
+            model.properties.forEach { property -> property.type.models().forEach(::visit) }
+        }
+        val rootModel = models.getValue(root.qualifiedName!!.asString())
+        visit(rootModel)
+        val source = buildSource(packageName, rootName, rootModel, owned.toList())
         val sourceFiles = models.values.mapNotNull { it.declaration.containingFile }.distinct().toTypedArray()
         require(sourceFiles.isNotEmpty()) { "@Kson interface must be declared in source" }
         codeGenerator.createNewFile(
@@ -89,14 +73,92 @@ private class KsonProcessor(
             "${rootName}Json",
         ).bufferedWriter().use { it.write(source) }
     }
+
+    /**
+     * The @Kson interface whose generated object holds the codec for [declaration]: [declaration] itself when it is
+     * a @Kson interface, else the nearest enclosing one that reaches it. Either must be declared in this compilation,
+     * since other roots call its internal codec. Otherwise each root that reaches [declaration] gets its own copy.
+     */
+    private fun ownerOf(declaration: KSClassDeclaration, root: KSClassDeclaration): KSClassDeclaration {
+        val name = declaration.qualifiedName!!.asString()
+        return generateSequence(declaration) { it.parentDeclaration as? KSClassDeclaration }
+            .firstOrNull { candidate ->
+                candidate.containingFile != null && candidate.isKson() && name in reachedFrom(candidate)
+            }
+            ?: root
+    }
+
+    private fun reachedFrom(declaration: KSClassDeclaration): Set<String> =
+        reached.getOrPut(declaration.qualifiedName!!.asString()) {
+            try {
+                readModels(declaration).keys
+            } catch (_: IllegalArgumentException) {
+                emptySet()
+            }
+        }
+}
+
+/** Reads [root] and every interface it reaches, keyed by qualified name. */
+private fun readModels(root: KSClassDeclaration): Map<String, Model> {
+    val models = linkedMapOf<String, Model>()
+
+    fun readModel(declaration: KSClassDeclaration): Model {
+        val qualifiedName = requireNotNull(declaration.qualifiedName?.asString()) {
+            "@Kson interfaces must have a qualified name"
+        }
+        models[qualifiedName]?.let { return it }
+        require(declaration.classKind == ClassKind.INTERFACE) {
+            "Unsupported property type $qualifiedName: use an interface for nested JSON objects"
+        }
+        require(declaration.typeParameters.isEmpty()) {
+            "Nested Kson interfaces cannot have type parameters: $qualifiedName"
+        }
+        val model = Model(declaration)
+        models[qualifiedName] = model
+        declaration.getAllProperties().forEach { property ->
+            require(!property.isMutable) {
+                "Kson properties must be val: ${property.simpleName.asString()}"
+            }
+            model.properties += Property(
+                property.simpleName.asString(),
+                readType(property.type.resolve(), ::readModel),
+                hasDefault = !property.isAbstract(),
+            )
+        }
+        return model
+    }
+
+    readModel(root)
+    return models
+}
+
+private fun KSClassDeclaration.isKson(): Boolean = annotations.any {
+    it.shortName.asString() == "Kson" &&
+        it.annotationType.resolve().declaration.qualifiedName?.asString() == KSON_ANNOTATION
 }
 
 private class Model(
     val declaration: KSClassDeclaration,
-    val generatedName: String,
     val properties: MutableList<Property> = mutableListOf(),
 ) {
+    /** The @Kson interface whose generated object holds this model's codec and builder. */
+    lateinit var owner: KSClassDeclaration
+
+    /** Whether the root being generated is the [owner]. */
+    var local: Boolean = true
+
     val typeName: String get() = declaration.qualifiedName!!.asString()
+
+    val generatedName: String
+        get() = typeName.removePrefix("${owner.packageName.asString()}.").replace('.', '_')
+
+    /** Prefix that reaches this model's codec and builder from the root being generated. */
+    val ref: String
+        get() {
+            if (local) return ""
+            val packageName = owner.packageName.asString()
+            return (if (packageName.isEmpty()) "" else "$packageName.") + "${owner.simpleName.asString()}Json."
+        }
 }
 
 /** [hasDefault] is true when the interface gives the property a getter, which then supplies its default. */
@@ -116,6 +178,12 @@ private sealed interface TypeKind {
     data class Object(val model: Model) : TypeKind
     data class ListType(val element: TypeRef) : TypeKind
     data class EnumType(val declaration: KSClassDeclaration) : TypeKind
+}
+
+private fun TypeRef.models(): List<Model> = when (val kind = kind) {
+    is TypeKind.Object -> listOf(kind.model)
+    is TypeKind.ListType -> kind.element.models()
+    else -> emptyList()
 }
 
 private fun readType(type: KSType, readModel: (KSClassDeclaration) -> Model): TypeRef {
@@ -171,7 +239,7 @@ private fun buildSource(
 
     models.forEach { model ->
         appendLine()
-        appendLine("    private fun decode${model.generatedName}(value: JsonValue): ${model.typeName} {")
+        appendLine("    internal fun decode${model.generatedName}(value: JsonValue): ${model.typeName} {")
         appendLine("        val fields = value.jsonObject")
         appendLine("        val builder = ${model.generatedName}Builder()")
         model.properties.forEach { property ->
@@ -191,9 +259,9 @@ private fun buildSource(
         appendLine("    }")
         appendLine()
         if (model.properties.isEmpty()) {
-            appendLine("    private fun encode${model.generatedName}(value: ${model.typeName}): JsonObject = JsonObject.Empty")
+            appendLine("    internal fun encode${model.generatedName}(value: ${model.typeName}): JsonObject = JsonObject.Empty")
         } else {
-            appendLine("    private fun encode${model.generatedName}(value: ${model.typeName}): JsonObject =")
+            appendLine("    internal fun encode${model.generatedName}(value: ${model.typeName}): JsonObject =")
             appendLine("        JsonObject(linkedMapOf<String, JsonValue>(")
             model.properties.forEach { property ->
                 val encoded = encodeExpression(property.type, "value.${property.name.identifier()}")
@@ -238,14 +306,14 @@ private fun StringBuilder.appendBuilder(model: Model, packageName: String) {
         appendLine("        public var $name: $type by $delegate")
         when (val kind = property.type.kind) {
             is TypeKind.Object -> {
-                val nested = "${kind.model.generatedName}Builder"
+                val nested = "${kind.model.ref}${kind.model.generatedName}Builder"
                 appendLine()
                 appendLine("        public fun $name(block: $nested.() -> Unit) {")
                 appendLine("            $name = $nested().apply(block).build()")
                 appendLine("        }")
             }
             is TypeKind.ListType -> (kind.element.kind as? TypeKind.Object)?.let { element ->
-                val nested = "${element.model.generatedName}Builder"
+                val nested = "${element.model.ref}${element.model.generatedName}Builder"
                 val listBuilder = "KsonListBuilder<${renderType(kind.element)}, $nested>"
                 appendLine()
                 appendLine("        public fun $name(block: $listBuilder.() -> Unit) {")
@@ -329,7 +397,7 @@ private fun StringBuilder.appendTypeSchema(type: TypeRef, indent: String, visiti
 private fun decodeExpression(type: TypeRef, value: String): String {
     val decoded = when (val kind = type.kind) {
         is TypeKind.Scalar -> value + kind.decode
-        is TypeKind.Object -> "decode${kind.model.generatedName}($value)"
+        is TypeKind.Object -> "${kind.model.ref}decode${kind.model.generatedName}($value)"
         is TypeKind.ListType -> "$value.jsonArray.map { item -> ${decodeExpression(kind.element, "item")} }"
         is TypeKind.EnumType -> "$value.enumValue<${kind.declaration.qualifiedName!!.asString()}>()"
     }
@@ -342,7 +410,7 @@ private fun encodeExpression(type: TypeRef, value: String): String {
     }
     return when (val kind = type.kind) {
         is TypeKind.Scalar -> kind.encode?.let { "$it($value)" } ?: value
-        is TypeKind.Object -> "encode${kind.model.generatedName}($value)"
+        is TypeKind.Object -> "${kind.model.ref}encode${kind.model.generatedName}($value)"
         is TypeKind.ListType -> "JsonArray($value.map { item -> ${encodeExpression(kind.element, "item")} })"
         is TypeKind.EnumType -> "JsonString($value.name)"
     }

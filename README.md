@@ -432,6 +432,8 @@ KSP generates the immutable implementations, decoder, encoder, builder DSL, and 
 
 The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them. An enum value that names no constant throws `JsonTypeException`, for example `Expected one of [ADMIN, VIEWER] but was "OWNER"`.
 
+A `@Kson` interface used by another `@Kson` interface, such as `User` inside `UserPage`, is decoded by its own generated object, so the same JSON gives equal values through either root. An interface nested inside a `@Kson` interface belongs to it. Any other plain interface reached from two roots is generated once per root, so annotate it with `@Kson` when values must compare equal across roots.
+
 ### Builder DSL
 
 Each `@Kson` interface also gets a builder function named after it, such as `userResponseKson` for `UserResponse`:
