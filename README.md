@@ -158,6 +158,36 @@ val user: User = UserJson.decode(responseText)
 val body: String = UserJson.encode(user).toJson()
 ```
 
+### 4. Build values with `userKson { }`
+
+`User` is an interface, so you don't call a constructor. Use the generated `userKson { }` builder to create request bodies, test fixtures, or fake responses:
+
+```kotlin
+val user: User = userKson {
+    id = 1
+    name = "Leanne Graham"
+    email = "leanne@example.com"
+    address {                                   // nested interfaces get a block
+        city = "Gwenborough"
+        geo { lat = "-37.3159"; lng = "81.1496" }
+    }
+    tags = listOf("admin", "beta")              // other types are assigned directly
+}
+```
+
+The builder returns the same immutable type the decoder returns, so values with the same content are equal, and `UserJson.encode(user)` gives the JSON. To reuse part of an existing value, assign it instead of using a block. There is no `copy()`, so build a new value:
+
+```kotlin
+val neighbor = userKson {
+    id = 2
+    name = "Ervin Howell"
+    email = "ervin@example.com"
+    address = user.address                      // reuse an existing nested value
+}
+```
+
+`neighbor` has no `tags` set, so it uses the `get() = emptyList()` default from step 2. Nullable properties start as `null`. If a required property is never set, building throws `IllegalStateException` with the missing path, such as `User.Address.city is not set`. See [Builder DSL](#builder-dsl-1) for lists of objects and the other builder rules.
+
 See [Typed responses with KSP](#typed-responses-with-ksp) and [Ktor and Retrofit](#ktor-and-retrofit) for the details. The rest of this README covers the untyped JSON API, jq queries, JSON Schema, and the CLI.
 
 ### GitHub Packages
