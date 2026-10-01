@@ -6,9 +6,9 @@
 
 | Check | Result |
 |---|---|
-| kson: `UserJson.decode(user) == UserPageJson.decode(page).users[0]` | `false` |
-| kson: `.address` of each, compared | `false` |
-| kson: runtime classes | `bench.kson.UserJson$UserImpl` vs `bench.kson.UserPageJson$UserImpl` |
+| kson: `UserJson.decode(user) == UserPageJson.decode(page).users[0]` | `true` |
+| kson: `.address` of each, compared | `true` |
+| kson: runtime classes | `bench.kson.UserJson$UserImpl` vs `bench.kson.UserJson$UserImpl` |
 | kson: same JSON when encoded | `true` |
 | kotlinx (control): same comparison | `true` |
 
@@ -20,7 +20,7 @@ Ktor callers catch `JsonConvertException` (a `ContentConvertException`); anythin
 |---|---|
 | Malformed JSON `{"id":1,` | `io.ktor.serialization.JsonConvertException`: Unable to read TypeInfo(probe.KsonProbe): Unexpected end of input inside object at line 1, column 9 |
 | Missing required key `{"id":1}` | `io.ktor.serialization.JsonConvertException`: Unable to read TypeInfo(probe.KsonProbe): Missing required key "name" in object {"id":1} |
-| Unknown enum constant `{"id":1,"name":"a","score":1,"role":"OWNER","inner":{"value":1}}` | `java.lang.IllegalArgumentException`: No enum constant probe.ProbeRole.OWNER |
+| Unknown enum constant `{"id":1,"name":"a","score":1,"role":"OWNER","inner":{"value":1}}` | `io.ktor.serialization.JsonConvertException`: Unable to read TypeInfo(probe.KsonProbe): Expected one of [ADMIN, VIEWER] but was "OWNER" |
 
 ### Builder with a required property left unset
 

@@ -45,8 +45,8 @@ A 1,000-user page decoded and re-encoded by each library, compared with the inpu
 | `"score": 1e400` (Double overflow) | ✓ score=Infinity ⚠ | ✗ `JsonDecodingException` | ✗ `JsonEncodingException` | ✓ score=Infinity ⚠ | ✓ score=Infinity ⚠ |
 | `"name": 42` (number for String) | ✗ `JsonTypeException` | ✗ `JsonDecodingException` | ✓ name=42 | ✓ name=42 | ✓ name=42 |
 | `"tags": "x"` (string for List) | ✗ `JsonTypeException` | ✗ `JsonDecodingException` | ✗ `JsonDataException` | ✗ `JsonSyntaxException` | ✗ `MismatchedInputException` |
-| `"role": "OWNER"` (unknown enum) | ✗ `IllegalArgumentException` ⚠ | ✗ `SerializationException` | ✗ `JsonDataException` | ✓ role=null ⚠ | ✗ `InvalidFormatException` |
-| `"role": "admin"` (enum case differs) | ✗ `IllegalArgumentException` ⚠ | ✗ `SerializationException` | ✗ `JsonDataException` | ✓ role=null ⚠ | ✗ `InvalidFormatException` |
+| `"role": "OWNER"` (unknown enum) | ✗ `JsonTypeException` | ✗ `SerializationException` | ✗ `JsonDataException` | ✓ role=null ⚠ | ✗ `InvalidFormatException` |
+| `"role": "admin"` (enum case differs) | ✗ `JsonTypeException` | ✗ `SerializationException` | ✗ `JsonDataException` | ✓ role=null ⚠ | ✗ `InvalidFormatException` |
 
 ### Decoding: Syntax
 
@@ -150,11 +150,11 @@ Parse into the untyped tree, then write it back with the same library.
 | `"tags": "x"` (string for List) | moshi | `com.squareup.moshi.JsonDataException` | Expected BEGIN_ARRAY but was STRING at path $.tags |
 | `"tags": "x"` (string for List) | gson | `com.google.gson.JsonSyntaxException` | java.lang.IllegalStateException: Expected BEGIN_ARRAY but was STRING at line 1 column 73 path $.tags See https://github.com/google/gson/blob/main/Troubleshooting.md#unexpected-json-structure |
 | `"tags": "x"` (string for List) | jackson | `com.fasterxml.jackson.databind.exc.MismatchedInputException` | Cannot construct instance of `java.util.ArrayList` (although at least one Creator exists): no String-argument constructor/factory method to deserialize from String value ('x')  at [Source: REDACTED (`StreamReadFeature.IN… |
-| `"role": "OWNER"` (unknown enum) | kson | `java.lang.IllegalArgumentException` | No enum constant probe.ProbeRole.OWNER |
+| `"role": "OWNER"` (unknown enum) | kson | `com.fajarnuha.kson.JsonTypeException` | Expected one of [ADMIN, VIEWER] but was "OWNER" |
 | `"role": "OWNER"` (unknown enum) | kotlinx.serialization | `kotlinx.serialization.SerializationException` | probe.ProbeRole does not contain element with name 'OWNER' at path $.role |
 | `"role": "OWNER"` (unknown enum) | moshi | `com.squareup.moshi.JsonDataException` | Expected one of [ADMIN, VIEWER] but was OWNER at path $.role |
 | `"role": "OWNER"` (unknown enum) | jackson | `com.fasterxml.jackson.databind.exc.InvalidFormatException` | Cannot deserialize value of type `probe.ProbeRole` from String "OWNER": not one of the values accepted for Enum class: [VIEWER, ADMIN]  at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line… |
-| `"role": "admin"` (enum case differs) | kson | `java.lang.IllegalArgumentException` | No enum constant probe.ProbeRole.admin |
+| `"role": "admin"` (enum case differs) | kson | `com.fajarnuha.kson.JsonTypeException` | Expected one of [ADMIN, VIEWER] but was "admin" |
 | `"role": "admin"` (enum case differs) | kotlinx.serialization | `kotlinx.serialization.SerializationException` | probe.ProbeRole does not contain element with name 'admin' at path $.role |
 | `"role": "admin"` (enum case differs) | moshi | `com.squareup.moshi.JsonDataException` | Expected one of [ADMIN, VIEWER] but was admin at path $.role |
 | `"role": "admin"` (enum case differs) | jackson | `com.fasterxml.jackson.databind.exc.InvalidFormatException` | Cannot deserialize value of type `probe.ProbeRole` from String "admin": not one of the values accepted for Enum class: [VIEWER, ADMIN]  at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line… |

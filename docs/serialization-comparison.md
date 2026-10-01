@@ -18,15 +18,17 @@ It ends with the improvements to kson that the measurements point to.
 - **kson creates about 2.3× the garbage of kotlinx.serialization, Moshi, and Gson on decode**, level with Jackson.
   The cause is the intermediate `JsonValue` tree, and `JsonNumber` in particular. The decoded result itself is the
   smallest of the five.
-- **Small runtime and fast cold start.** The runtime is one 279 KB jar with no dependencies, and the first decode
-  takes 14 ms (Jackson: 240 ms, 5.6 MB). Its generated code is the largest, because nested codecs are copied into
-  every root.
+- **Small runtime and fast cold start.** The runtime is one 280 KB jar with no dependencies, and the first decode
+  takes 14 ms (Jackson: 240 ms, 5.6 MB). Its generated code is the largest, because each model gets a builder as
+  well as a decoder and an encoder.
 - **Strict and predictable input handling.** kson rejects every malformed input tested, enforces Kotlin nullability,
   caps nesting depth (kotlinx.serialization overflows the stack), and keeps number literals exact. Gson, by
   contrast, puts `null` into non-null properties.
-- **Three problems found:**
-  - An unknown enum value throws a raw `IllegalArgumentException` that escapes the Ktor converter.
-  - The same JSON decoded through two different `@Kson` roots gives objects that aren't `==`.
+- **Three problems found, two since fixed:**
+  - An unknown enum value threw a raw `IllegalArgumentException` that escaped the Ktor converter. Fixed in
+    [#1](https://github.com/fajarnuha/kson/issues/1).
+  - The same JSON decoded through two different `@Kson` roots gave objects that weren't `==`. Fixed in
+    [#2](https://github.com/fajarnuha/kson/issues/2).
   - Error messages have no JSON path and include part of the payload.
 - **Narrow type support.** There is no `Map`, `Set`, custom adapter, polymorphism, recursion, generics, or key
   renaming, and input must be a `String`.
@@ -164,7 +166,7 @@ and re-encode the 1,000-user page to the same JSON values.
 | `1.0` for `Int` | `1` | **error** | `1` | `1` | `1` |
 | `1.5` for `Int` | error | error | error | error | **`1` (truncated)** |
 | `1e400` for `Double` | **`Infinity`** | error | error | `Infinity` | `Infinity` |
-| Unknown enum constant | **`IllegalArgumentException`** | error | error | **`null`** | error |
+| Unknown enum constant | error | error | error | **`null`** | error |
 
 Gson is the only library here that breaks Kotlin's null safety. Because it creates objects without calling the
 constructor, a non-null `String` property can hold `null` and fail later, far from the parse. kson follows its type
@@ -172,16 +174,17 @@ declarations strictly and is the only library that refuses a quoted number (`"42
 places: an unknown key is ignored, as in Moshi and Gson, and a JSON `null` for a non-null property that has a default
 falls back to the default, where every other library throws.
 
-**Unknown enum constants escape kson's exception type.** The generated decoder calls `enumValueOf`, so a value
-the client doesn't know (for example, a role added on the server) throws `java.lang.IllegalArgumentException`
-instead of a `JsonException`. [`kson-checks.md`](benchmarks/results/kson-checks.md) shows this reaching Ktor users.
-`KsonConverter` wraps `JsonException` in `JsonConvertException` but lets this exception through unwrapped:
+**Unknown enum constants are a `JsonTypeException`.** The generated decoder used to call `enumValueOf`, so a value
+the client doesn't know (for example, a role added on the server) threw `java.lang.IllegalArgumentException`, which
+escaped `KsonConverter`'s `JsonConvertException` wrapping. Since [#1](https://github.com/fajarnuha/kson/issues/1) it
+throws `JsonTypeException` and lists the allowed values, and Ktor users get the same exception as for any other bad
+body ([`kson-checks.md`](benchmarks/results/kson-checks.md)):
 
 | Body | Thrown by `KsonConverter.deserialize` |
 |---|---|
 | `{"id":1,` | `JsonConvertException` |
 | `{"id":1}` (missing key) | `JsonConvertException` |
-| `"role":"OWNER"` (unknown enum) | `java.lang.IllegalArgumentException` |
+| `"role":"OWNER"` (unknown enum) | `JsonConvertException`: *Expected one of [ADMIN, VIEWER] but was "OWNER"* |
 
 ### Syntax
 
@@ -224,20 +227,20 @@ kson's configurable `maxDepth` turns hostile input into an ordinary parse error.
 
 ### Equality across roots
 
-KSP generates a separate copy of every nested model for each `@Kson` root. `UserJson` and `UserPageJson` each contain
-their own `UserImpl`, `User_AddressImpl`, and so on. So the same JSON user decoded through the two roots gives two
-objects that are **not equal**, and neither are their `address` values
+KSP used to generate a separate copy of every nested model for each `@Kson` root, so `UserJson` and `UserPageJson`
+each contained their own `UserImpl`, and the same JSON user decoded through the two roots gave objects that were not
+equal. Since [#2](https://github.com/fajarnuha/kson/issues/2), each model is generated once, inside the `@Kson`
+interface that owns it, and other roots call that codec
 ([`kson-checks.md`](benchmarks/results/kson-checks.md)):
 
 ```
-UserJson.decode(user) == UserPageJson.decode(page).users[0]   // false
-runtime classes: bench.kson.UserJson$UserImpl vs bench.kson.UserPageJson$UserImpl
+UserJson.decode(user) == UserPageJson.decode(page).users[0]   // true
+runtime classes: bench.kson.UserJson$UserImpl vs bench.kson.UserJson$UserImpl
 ```
 
-The README says built and decoded values "compare equal by content". That only holds within one root. Any app that
-gets `User` from both a detail endpoint and a list endpoint will see `==` fail, and so will `distinct()`,
-`StateFlow` deduplication, and Compose's stability checks. kotlinx.serialization's `data class` models don't have
-this problem.
+One case still copies: a plain interface that is neither `@Kson` nor nested in a `@Kson` interface, reached from two
+roots, gets one implementation per root. Annotating it with `@Kson` makes it shared. kotlinx.serialization's
+`data class` models don't need this.
 
 ## Performance
 
@@ -332,17 +335,14 @@ From [`footprint.md`](benchmarks/results/footprint.md). Jar sizes are before R8 
 
 | | kson | kotlinx.serialization | Moshi | Gson | Jackson |
 |---|---:|---:|---:|---:|---:|
-| Runtime jars | 279 KB (1 jar) | 682 KB (2 jars) | 511 KB (moshi + okio) | 326 KB | **5,590 KB** (incl. 3 MB `kotlin-reflect`) |
-| Bytecode for the benchmark model | 135 KB, 28 classes | 75 KB, 17 classes | 56 KB, 11 classes | 22 KB, 6 classes | 22 KB, 6 classes |
+| Runtime jars | 280 KB (1 jar) | 682 KB (2 jars) | 511 KB (moshi + okio) | 326 KB | **5,590 KB** (incl. 3 MB `kotlin-reflect`) |
+| Bytecode for the benchmark model | 89 KB, 20 classes | 75 KB, 17 classes | 56 KB, 11 classes | 22 KB, 6 classes | 22 KB, 6 classes |
 
 kson's runtime is small and has no dependencies. It still includes the jq engine and the JSON Schema builder, which
-typed-only users don't need. Its generated code is the largest here, for two reasons:
-
-1. Each model gets an `Impl`, a `Builder` (with a `KsonProperty` delegate per property), a decoder, and an encoder.
-2. Nested codecs are copied into every root. `User`, `Address`, `Geo`, and `Friend` are generated once inside
-   `UserJson` and again inside `UserPageJson`; the build output lists `UserJson$UserImpl` and
-   `UserPageJson$UserImpl` side by side. The same duplication causes the equality problem in
-   [Stability](#equality-across-roots). An app with 30 endpoints that share a `User` type gets 30 copies of it.
+typed-only users don't need. Its generated code is the largest here, because each model gets an `Impl`, a `Builder`
+(with a `KsonProperty` delegate per property), a decoder, and an encoder. Before
+[#2](https://github.com/fajarnuha/kson/issues/2), nested codecs were also copied into every root, which made it
+135 KB in 28 classes.
 
 ## Why kson performs this way
 
@@ -387,8 +387,8 @@ performance gaps.
 
 | # | Change | Why (evidence) | Size |
 |---|---|---|---|
-| 1 | Map an unknown enum constant to `JsonTypeException`, and list the allowed values. For example, generate a call to a library helper instead of a bare `enumValueOf`. | `IllegalArgumentException` escapes `JsonException` handlers and Ktor's `JsonConvertException` wrapping ([kson-checks.md](benchmarks/results/kson-checks.md)). | small |
-| 2 | Generate each `@Kson` type's codec once and have other roots call it, instead of copying nested models into every root. | The same user decoded through two roots is not `==`; the model bytecode is 2.4× Moshi's. | medium |
+| 1 | ~~Map an unknown enum constant to `JsonTypeException`, and list the allowed values.~~ **Done** in [#1](https://github.com/fajarnuha/kson/issues/1). | `IllegalArgumentException` escaped `JsonException` handlers and Ktor's `JsonConvertException` wrapping ([kson-checks.md](benchmarks/results/kson-checks.md)). | small |
+| 2 | ~~Generate each `@Kson` type's codec once and have other roots call it.~~ **Done** in [#2](https://github.com/fajarnuha/kson/issues/2). | The same user decoded through two roots was not `==`; the model bytecode dropped from 135 KB to 89 KB. | medium |
 | 3 | Put a JSON path in decode errors (`$.users[412].address.geo.lat`), and leave out the payload excerpt or make it opt-in. | Nested errors can't be located, and response data ends up in logs ([Error messages](#error-messages)). | medium |
 | 4 | Make `JsonNumber` cheap: compute the canonical form only for `equals`/`hashCode`, replace `by lazy` with a plain cached field, and add a fast path in `toLongOrNull` for plain integer literals. | About 7 objects per number (JOL), and a `StringBuilder` on every `.long` read. Helps the tree API and the typed path alike. | small |
 | 5 | Have the generated encoder write straight to a `StringBuilder` (for example, an `encodeToString(value)` next to the existing `encode(): JsonObject`). | Encoding is 2.6× slower than kotlinx.serialization and allocates 4.5× as much, mostly for the intermediate tree. | medium |
