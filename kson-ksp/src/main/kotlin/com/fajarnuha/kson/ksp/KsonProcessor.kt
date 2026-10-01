@@ -331,7 +331,7 @@ private fun decodeExpression(type: TypeRef, value: String): String {
         is TypeKind.Scalar -> value + kind.decode
         is TypeKind.Object -> "decode${kind.model.generatedName}($value)"
         is TypeKind.ListType -> "$value.jsonArray.map { item -> ${decodeExpression(kind.element, "item")} }"
-        is TypeKind.EnumType -> "enumValueOf<${kind.declaration.qualifiedName!!.asString()}>($value.string)"
+        is TypeKind.EnumType -> "$value.enumValue<${kind.declaration.qualifiedName!!.asString()}>()"
     }
     return if (type.nullable) "$value.takeUnless { it === JsonNull }?.let { item -> ${decodeExpression(type.copy(nullable = false), "item")} }" else decoded
 }

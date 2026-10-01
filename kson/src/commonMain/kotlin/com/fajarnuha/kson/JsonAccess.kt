@@ -51,6 +51,19 @@ public val JsonValue.double: Double get() = doubleOrNull ?: mismatch("number")
 public val JsonValue.floatOrNull: Float? get() = (this as? JsonNumber)?.toFloat()
 public val JsonValue.float: Float get() = floatOrNull ?: mismatch("number")
 
+/**
+ * The string value as the constant of enum [T] with that name.
+ * Throws [JsonTypeException] when the value is not a string or names no constant of [T].
+ */
+public inline fun <reified T : Enum<T>> JsonValue.enumValue(): T = enumValue(enumValues<T>())
+
+@PublishedApi
+internal fun <T : Enum<T>> JsonValue.enumValue(entries: Array<T>): T {
+    val name = string
+    return entries.firstOrNull { it.name == name }
+        ?: throw JsonTypeException("Expected one of ${entries.map { it.name }} but was ${toJson().take(80)}")
+}
+
 // ---------------------------------------------------------------------------
 // Navigation. `value["key"]` and `value[index]` return null instead of throwing
 // when the receiver is not a container or the member is missing.

@@ -430,7 +430,7 @@ println(UserResponseJson.schema.toJson(pretty = true))
 
 KSP generates the immutable implementations, decoder, encoder, builder DSL, and draft 2020-12 schema. A nullable property is optional and accepts JSON `null`. A property with a getter is optional too; see [Default values](#default-values). Supported property types are nested interfaces, enums, `List`, `String`, `Boolean`, `Int`, `Long`, `Float`, `Double`, and KSON value types.
 
-The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them.
+The generated `UserResponseJson` object implements `KsonDecoder<UserResponse>` and `KsonEncoder<UserResponse>`. `encode` accepts any implementation of the interface, including your own data classes, and returns a `JsonObject` with fields in declaration order. Nullable properties that are `null` are written as JSON `null`; call `.withoutNulls()` on the result to drop them. An enum value that names no constant throws `JsonTypeException`, for example `Expected one of [ADMIN, VIEWER] but was "OWNER"`.
 
 ### Builder DSL
 
