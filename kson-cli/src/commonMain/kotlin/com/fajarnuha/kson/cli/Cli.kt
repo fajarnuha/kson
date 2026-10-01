@@ -58,7 +58,7 @@ Commands:
   query <filter> [file...]   Run a jq filter (same as the default mode)
   fmt [file]                 Pretty-print JSON
   min [file]                 Minify JSON
-  model [file]               Generate an @Kson interface from a JSON object
+  model [file]               Generate an @Kson interface from a JSON object or a JSON Schema
   validate [file]            Check that input is valid JSON (exit 1 if not)
   get <pointer> [file]       Print the value at an RFC 6901 JSON Pointer, e.g. /users/0/name
   keys [pointer] [file]      List the keys of an object (or the indices of an array)
@@ -103,7 +103,8 @@ Other options:
       --no-formats           schema: do not detect string formats
       --no-required          schema: do not emit 'required'
       --closed               schema: emit additionalProperties: false
-      --name <type>          model: root interface name (default: filename or Model)
+      --name <type>          model: root interface name (default: filename, schema title, or Model)
+      --schema               model: read the input as a JSON Schema (auto-detected when it has ${'$'}schema)
       --package <name>       model: optional Kotlin package name
   --                         Treat every following argument as positional
 
@@ -137,6 +138,7 @@ private class Options {
     var closed = false
     var modelName: String? = null
     var packageName: String? = null
+    var fromSchema: Boolean? = null
     val named = LinkedHashMap<String, JsonValue>()
     val positional = mutableListOf<String>()
 
@@ -214,6 +216,7 @@ private fun parseOptions(args: List<String>, command: String): Options {
             "--closed" -> o.closed = true
             "--name" -> o.modelName = value(a)
             "--package", "--package-name" -> o.packageName = value(a)
+            "--schema" -> o.fromSchema = true
             else -> throw UsageException("Unknown option: $a")
         }
         i++
@@ -428,9 +431,10 @@ private fun model(args: List<String>, io: CliIo): Int {
         ?.substringAfterLast('/')
         ?.substringAfterLast('\\')
         ?.substringBeforeLast('.')
-        ?: "Model"
+        // `user.schema.json` names the model User.
+        ?.removeSuffix(".schema")
     val value = Json.parse(readSource(path, io), o.parseOptions)
-    io.line(renderKsonModel(value, o.modelName ?: defaultName, o.packageName))
+    io.line(renderKsonModel(value, o.modelName ?: defaultName, o.packageName, o.fromSchema))
     return 0
 }
 
