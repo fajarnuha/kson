@@ -11,7 +11,7 @@ allprojects {
 
 tasks.register("bumpVersion") {
     group = "versioning"
-    description = "Bump the project and CLI version (minor by default; -Ppart=major|patch)."
+    description = "Bump the project, CLI, and README version (minor by default; -Ppart=major|patch)."
 
     doLast {
         val current = project.property("VERSION_NAME") as String
@@ -24,17 +24,22 @@ tasks.register("bumpVersion") {
             "patch" -> "$major.$minor.${patch + 1}"
             else -> error("Unknown version part: $part (use major, minor, or patch)")
         }
-        val propertiesFile = file("gradle.properties")
-        val cliFile = file("kson-cli/src/commonMain/kotlin/com/fajarnuha/kson/cli/Cli.kt")
-        val propertiesText = propertiesFile.readText()
-        val cliText = cliFile.readText()
-        val propertiesVersion = "VERSION_NAME=$current"
-        val cliVersion = "const val VERSION = \"$current\""
-        require(propertiesText.contains(propertiesVersion) && cliText.contains(cliVersion)) {
-            "Project and CLI versions must match before bumping"
+        // Each file must hold the current version, so a half-applied bump is caught instead of compounded.
+        val replacements = mapOf(
+            "gradle.properties" to listOf("VERSION_NAME=%s"),
+            "kson-cli/src/commonMain/kotlin/com/fajarnuha/kson/cli/Cli.kt" to listOf("const val VERSION = \"%s\""),
+            "README.md" to listOf(":%s\"", ":%s`"),
+        )
+        val updated = replacements.mapValues { (path, patterns) ->
+            var text = file(path).readText()
+            for (pattern in patterns) {
+                val old = pattern.format(current)
+                require(old in text) { "$path does not contain $old; versions must match before bumping" }
+                text = text.replace(old, pattern.format(next))
+            }
+            text
         }
-        propertiesFile.writeText(propertiesText.replace(propertiesVersion, "VERSION_NAME=$next"))
-        cliFile.writeText(cliText.replace(cliVersion, "const val VERSION = \"$next\""))
+        updated.forEach { (path, text) -> file(path).writeText(text) }
         println("Bumped version $current -> $next")
     }
 }

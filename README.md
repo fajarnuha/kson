@@ -36,20 +36,20 @@ plugins {
 }
 
 dependencies {
-    implementation("com.fajarnuha.kson:kson:v0.6.0")
-    ksp("com.fajarnuha.kson:kson-ksp:v0.6.0")
+    implementation("com.fajarnuha.kson:kson:0.6.0")
+    ksp("com.fajarnuha.kson:kson-ksp:0.6.0")
 
     // Ktor client
-    implementation("com.fajarnuha.kson:kson-ktor:v0.6.0")
+    implementation("com.fajarnuha.kson:kson-ktor:0.6.0")
     implementation("io.ktor:ktor-client-cio:3.6.0")
     implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
 
     // or Retrofit
-    implementation("com.fajarnuha.kson:kson-retrofit:v0.6.0")
+    implementation("com.fajarnuha.kson:kson-retrofit:0.6.0")
 }
 ```
 
-JitPack versions are git tags, so they keep the `v`. `kson-ktor` and `kson-retrofit` already depend on `kson`, so you can leave it out when you use one of them.
+JitPack versions are git tags, which carry no `v`, so the same version works on JitPack and GitHub Packages. `kson-ktor` and `kson-retrofit` already depend on `kson`, so you can leave it out when you use one of them.
 
 ### 2. Generate a model from a JSON response
 
@@ -162,7 +162,7 @@ See [Typed responses with KSP](#typed-responses-with-ksp) and [Ktor and Retrofit
 
 ### GitHub Packages
 
-Each release is also published to GitHub Packages as `com.fajarnuha.kson:<module>:0.6.0`, without the `v`. GitHub requires a login even for public packages, so consumers need a classic personal access token with the `read:packages` scope:
+Each release is also published to GitHub Packages as `com.fajarnuha.kson:<module>:0.6.0`. GitHub requires a login even for public packages, so consumers need a classic personal access token with the `read:packages` scope:
 
 ```kotlin
 repositories {
@@ -419,7 +419,7 @@ A property is nullable when it is not in `required`, or when its schema allows n
 
 macOS linking needs Xcode. CI uploads binaries for all five CLI targets.
 
-Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. Commit the version changes, then push a matching tag. CI tests the tag and attaches binaries for all five targets, plus macOS Homebrew archives, to a GitHub Release.
+Run `./gradlew bumpVersion` to bump the minor version. Use `-Ppart=patch` or `-Ppart=major` for other bumps. It updates `gradle.properties`, the CLI version, and the versions in this README. Commit the changes, then push a tag that is exactly the new version, without a `v` (e.g. `0.7.0`); CI fails the GitHub Packages publish if the tag and `VERSION_NAME` differ. CI tests the tag and attaches binaries for all five targets, plus macOS Homebrew archives, to a GitHub Release.
 
 ## Typed responses with KSP
 
