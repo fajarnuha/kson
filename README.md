@@ -36,16 +36,16 @@ plugins {
 }
 
 dependencies {
-    implementation("com.fajarnuha.kson:kson:0.6.0")
-    ksp("com.fajarnuha.kson:kson-ksp:0.6.0")
+    implementation("com.fajarnuha.kson:kson:0.7.0")
+    ksp("com.fajarnuha.kson:kson-ksp:0.7.0")
 
     // Ktor client
-    implementation("com.fajarnuha.kson:kson-ktor:0.6.0")
+    implementation("com.fajarnuha.kson:kson-ktor:0.7.0")
     implementation("io.ktor:ktor-client-cio:3.6.0")
     implementation("io.ktor:ktor-client-content-negotiation:3.6.0")
 
     // or Retrofit
-    implementation("com.fajarnuha.kson:kson-retrofit:0.6.0")
+    implementation("com.fajarnuha.kson:kson-retrofit:0.7.0")
 }
 ```
 
@@ -192,7 +192,7 @@ See [Typed responses with KSP](#typed-responses-with-ksp) and [Ktor and Retrofit
 
 ### GitHub Packages
 
-Each release is also published to GitHub Packages as `com.fajarnuha.kson:<module>:0.6.0`. GitHub requires a login even for public packages, so consumers need a classic personal access token with the `read:packages` scope:
+Each release is also published to GitHub Packages as `com.fajarnuha.kson:<module>:0.7.0`. GitHub requires a login even for public packages, so consumers need a classic personal access token with the `read:packages` scope:
 
 ```kotlin
 repositories {
