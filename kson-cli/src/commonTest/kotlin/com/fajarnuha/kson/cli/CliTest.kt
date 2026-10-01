@@ -220,6 +220,128 @@ class CliTest {
     }
 
     @Test
+    fun generateKsonModelFromJsonSchema() {
+        val schema = """
+            {
+              "${'$'}schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "user response",
+              "type": "object",
+              "required": ["id", "name", "nickname", "address", "tags", "status", "manager", "pet", "role", "extra"],
+              "properties": {
+                "id": { "type": "integer", "format": "int32" },
+                "name": { "type": "string" },
+                "nickname": { "type": ["string", "null"] },
+                "email": { "type": "string" },
+                "score": { "type": "number" },
+                "address": { "${'$'}ref": "#/${'$'}defs/address" },
+                "billing": { "${'$'}ref": "#/${'$'}defs/address" },
+                "tags": { "type": "array", "items": { "type": ["string", "null"] } },
+                "status": { "enum": ["active", "banned"] },
+                "manager": { "anyOf": [{ "${'$'}ref": "#" }, { "type": "null" }] },
+                "pet": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "type": "string" }, "age": { "type": "integer" } }
+                },
+                "role": { "allOf": [{ "${'$'}ref": "#/${'$'}defs/role" }], "nullable": true },
+                "extra": { "type": "object", "additionalProperties": { "type": "string" } },
+                "any": {},
+                "mixed": { "oneOf": [{ "type": "string" }, { "type": "integer" }] }
+              },
+              "${'$'}defs": {
+                "address": {
+                  "type": "object",
+                  "required": ["city"],
+                  "properties": { "city": { "type": "string" }, "zip": { "type": ["string", "null"] } }
+                },
+                "role": { "type": "string" }
+              }
+            }
+        """.trimIndent()
+        assertEquals(
+            """import com.fajarnuha.kson.Kson
+                |import com.fajarnuha.kson.JsonObject
+                |import com.fajarnuha.kson.JsonValue
+                |
+                |@Kson
+                |interface UserResponse {
+                |    val id: Int
+                |    val name: String
+                |    val nickname: String?
+                |    val email: String?
+                |    val score: Double?
+                |    val address: Address
+                |    val billing: Address?
+                |    val tags: List<String?>
+                |    val status: String
+                |    val manager: JsonObject?
+                |    val pet: Pet
+                |    val role: String?
+                |    val extra: JsonObject
+                |    val any: JsonValue?
+                |    val mixed: JsonValue?
+                |
+                |    interface Address {
+                |        val city: String
+                |        val zip: String?
+                |    }
+                |
+                |    interface Pet {
+                |        val name: String
+                |        val age: Long?
+                |    }
+                |}""".trimMargin(),
+            run("model", stdin = schema).out,
+        )
+        // The filename wins over the title, and `.schema.json` is dropped.
+        assertTrue(run("model", "account.schema.json", files = mapOf("account.schema.json" to schema)).out.contains("interface Account {"))
+    }
+
+    @Test
+    fun generateKsonModelFromSchemaEdgeCases() {
+        // --schema forces schema mode for a schema without ${'$'}schema; a root ${'$'}ref names the target after the root.
+        // Kson interfaces cannot be recursive, so references back to an enclosing interface become JsonObject.
+        val openApi = """
+            {
+              "${'$'}ref": "#/definitions/Node",
+              "definitions": {
+                "Node": {
+                  "allOf": [
+                    { "${'$'}ref": "#/definitions/Base" },
+                    { "type": "object", "required": ["children"], "properties": {
+                      "children": { "type": "array", "items": { "${'$'}ref": "#/definitions/Node" } },
+                      "parent": { "${'$'}ref": "#/definitions/Node", "nullable": true }
+                    } }
+                  ]
+                },
+                "Base": { "type": "object", "required": ["id"], "properties": { "id": { "type": "string" } } }
+              }
+            }
+        """.trimIndent()
+        assertEquals(
+            """import com.fajarnuha.kson.Kson
+                |import com.fajarnuha.kson.JsonObject
+                |
+                |@Kson
+                |interface Tree {
+                |    val id: String
+                |    val children: List<JsonObject>
+                |    val parent: JsonObject?
+                |}""".trimMargin(),
+            run("model", "--schema", "--name", "Tree", stdin = openApi).out,
+        )
+        // Without --schema and ${'$'}schema, the same text is sample JSON.
+        assertTrue(run("model", stdin = openApi).out.contains("val definitions: Definitions"))
+        // A file that only points at its schema (like tsconfig.json) is still sample JSON.
+        assertTrue(run("model", stdin = """{"${'$'}schema":"x","compilerOptions":{}}""").out.contains("val compilerOptions: CompilerOptions"))
+
+        val missing = run("model", "--schema", stdin = """{"type":"object","properties":{"a":{"${'$'}ref":"#/${'$'}defs/nope"}}}""")
+        assertEquals(2, missing.code)
+        assertTrue("Cannot resolve" in missing.err, missing.err)
+        assertEquals(2, run("model", "--schema", stdin = """{"type":"string"}""").code)
+    }
+
+    @Test
     fun validate() {
         assertEquals(0, run("validate", stdin = "[1]").code)
         val bad = run("validate", stdin = "{\n  \"a\": 01\n}")

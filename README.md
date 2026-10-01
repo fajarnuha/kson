@@ -389,6 +389,27 @@ kson model user-response.json
 curl -s https://api.example.com/user | kson model --name UserResponse --package com.example.api
 ```
 
+`model` also accepts a JSON Schema. A document with `$schema` and a schema keyword (`type`, `properties`, `$ref`, ...) is read as a schema; pass `--schema` for one without `$schema`, such as an OpenAPI component. A `.schema.json` suffix is dropped from the name, and a stdin schema is named after its `title`.
+
+```bash
+kson model user.schema.json                 # interface User
+kson model --schema --name Pet pet.json
+```
+
+A property is nullable when it is not in `required`, or when its schema allows null: `"type": ["string", "null"]`, `anyOf`/`oneOf` with a `{"type": "null"}` branch, OpenAPI's `"nullable": true`, or an `enum` that contains `null`. List items follow the same rule, so `{"items": {"type": ["string", "null"]}}` gives `List<String?>`.
+
+| Schema | Kotlin |
+|---|---|
+| `string`, `boolean` | `String`, `Boolean` |
+| `integer` (`format: int32`) | `Long` (`Int`) |
+| `number` (`format: float`) | `Double` (`Float`) |
+| `object` with `properties`, also merged through `allOf` | nested interface |
+| `object` without `properties` | `JsonObject` |
+| local `$ref` to an object | one shared interface nested in the root |
+| `$ref` back to an enclosing interface | `JsonObject` (Kson interfaces cannot be recursive) |
+| `enum` / `const` | the type of its values |
+| several types, or `anyOf`/`oneOf` with several non-null branches | `JsonValue` |
+
 ### Build the CLI
 
 ```bash
