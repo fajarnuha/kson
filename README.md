@@ -16,14 +16,11 @@ This walkthrough turns a raw JSON response into a typed DTO that Ktor or Retrofi
 
 ### 1. Add the dependencies
 
-kson is published on JitPack. Add the repository in `settings.gradle.kts`:
+Add Maven Central to the repositories in `settings.gradle.kts`:
 
 ```kotlin
 dependencyResolutionManagement {
-    repositories {
-        mavenCentral()
-        maven("https://jitpack.io")
-    }
+    repositories { mavenCentral() }
 }
 ```
 
@@ -49,7 +46,7 @@ dependencies {
 }
 ```
 
-JitPack versions are git tags, which carry no `v`, so the same version works on JitPack and GitHub Packages. `kson-ktor` and `kson-retrofit` already depend on `kson`, so you can leave it out when you use one of them.
+`kson-ktor` and `kson-retrofit` already depend on `kson`, so you can leave it out when you use one of them.
 
 ### 2. Generate a model from a JSON response
 
