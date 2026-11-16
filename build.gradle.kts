@@ -17,7 +17,7 @@ subprojects {
         extensions.configure<PublishingExtension> {
             publications.withType<MavenPublication>().configureEach {
                 val publicationName = name
-                val documentationJar = tasks.register<Jar>("\${publicationName}PublicationJavadocJar") {
+                val documentationJar = tasks.register<Jar>("${publicationName}PublicationJavadocJar") {
                     archiveAppendix.set(publicationName)
                     archiveClassifier.set("javadoc")
                     from(rootProject.file("README.md"))
