@@ -1,5 +1,0 @@
-jdk:
-  - openjdk21
-install:
-  # kson-ktor and kson-retrofit declare `kson` (the multiplatform root module), which redirects JVM consumers to `kson-jvm`, so publish both.
-  - ./gradlew :kson:publishKotlinMultiplatformPublicationToMavenLocal :kson:publishJvmPublicationToMavenLocal :kson-ksp:publishMavenPublicationToMavenLocal :kson-ktor:publishMavenPublicationToMavenLocal :kson-retrofit:publishMavenPublicationToMavenLocal -PGROUP="${GROUP}.${ARTIFACT}" -PVERSION_NAME="$VERSION"

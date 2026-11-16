@@ -106,18 +106,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
 
-  jitpack:
-    name: Build libraries on JitPack
-    if: startsWith(github.ref, 'refs/tags/') && github.event.repository.private == false
-    needs: test
-    runs-on: ubuntu-latest
-    steps:
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/fajarnuha/kson/kson/${GITHUB_REF_NAME}/kson-${GITHUB_REF_NAME}.pom" -o /dev/null
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/fajarnuha/kson/kson-jvm/${GITHUB_REF_NAME}/kson-jvm-${GITHUB_REF_NAME}.pom" -o /dev/null
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/fajarnuha/kson/kson-ksp/${GITHUB_REF_NAME}/kson-ksp-${GITHUB_REF_NAME}.pom" -o /dev/null
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/fajarnuha/kson/kson-ktor/${GITHUB_REF_NAME}/kson-ktor-${GITHUB_REF_NAME}.pom" -o /dev/null
-      - run: curl --fail --location --silent --show-error --retry-all-errors --retry 20 --retry-delay 15 "https://jitpack.io/com/fajarnuha/kson/kson-retrofit/${GITHUB_REF_NAME}/kson-retrofit-${GITHUB_REF_NAME}.pom" -o /dev/null
-
   publish:
     name: Publish library to GitHub Packages
     if: startsWith(github.ref, 'refs/tags/')
