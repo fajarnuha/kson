@@ -14,13 +14,14 @@ subprojects {
     pluginManager.withPlugin("maven-publish") {
         pluginManager.apply("com.vanniktech.maven.publish.base")
         val repositoryUrl = "https://github.com/fajarnuha/kson"
-        val documentationJar = tasks.register<Jar>("publicationJavadocJar") {
-            archiveClassifier.set("javadoc")
-            from(rootProject.file("README.md"))
-        }
-
         extensions.configure<PublishingExtension> {
             publications.withType<MavenPublication>().configureEach {
+                val publicationName = name
+                val documentationJar = tasks.register<Jar>("\${publicationName}PublicationJavadocJar") {
+                    archiveAppendix.set(publicationName)
+                    archiveClassifier.set("javadoc")
+                    from(rootProject.file("README.md"))
+                }
                 artifact(documentationJar)
                 pom {
                     developers {
